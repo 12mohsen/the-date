@@ -186,6 +186,10 @@ input[type="date"]:focus {
   margin-bottom: 4px;
 }
 
+.result-verb-red {
+  color: #f87171; /* أحمر لطيف */
+}
+
 .result-equivalent {
   font-size: 0.95rem;
   color: #4ade80; /* أخضر فاتح لتمييز "ما يعادل" */

@@ -111,7 +111,7 @@ function saveState(extra = {}) {
     singleDate: singleDateInput.value || "",
     mode,
     resultVisible: !resultCard.hidden,
-    resultText: resultText.textContent,
+    resultText: resultText.innerHTML,
     resultEquivalent: resultEquivalent.textContent,
     resultDetails: resultDetails.innerHTML,
     ...extra,
@@ -142,7 +142,7 @@ function restoreState() {
     }
 
     if (state.resultVisible && state.resultText) {
-      resultText.textContent = state.resultText;
+      resultText.innerHTML = state.resultText;
       resultEquivalent.textContent = state.resultEquivalent || "";
       resultDetails.innerHTML = state.resultDetails || "";
       resultCard.hidden = false;
@@ -344,7 +344,7 @@ function calculate() {
     } else if (days < 0) {
       verb = "بقي";
     }
-    resultText.textContent = `${verb} ${abs} يوم`;
+    resultText.innerHTML = `<span class="result-verb-red">${verb}</span> ${abs} يوم`;
     resultEquivalent.textContent = formatYearsAndDays(days);
 
     if (days > 0) {
@@ -420,23 +420,24 @@ saveEntryBtn.addEventListener("click", () => {
     return;
   }
 
-  const daysText = resultText.textContent || "";
+  const daysHtml = resultText.innerHTML || "";
   const importance = importanceSelect.value;
 
-   const noteRaw = prompt("اكتب الملاحظة للمدة الحالية:", "");
-   if (noteRaw === null) {
-     return;
-   }
+  const noteRaw = prompt("اكتب الملاحظة للمدة الحالية:", "");
+  if (noteRaw === null) {
+    return;
+  }
 
-   const note = noteRaw.trim();
-   if (!note) {
-     alert("الرجاء كتابة ملاحظة قبل الحفظ.");
-     return;
-   }
+  const note = noteRaw.trim();
+  if (!note) {
+    alert("الرجاء كتابة ملاحظة قبل الحفظ.");
+    return;
+  }
 
   const entry = {
     id: Date.now(),
-    remainingText: resultEquivalent.textContent || daysText,
+    // نستخدم نفس محتوى سطر النتيجة حتى تبقى كلمتا "مر/بقي" باللون الأحمر في الجدول
+    remainingText: daysHtml || resultEquivalent.textContent,
     detailsText: resultDetails.innerHTML || "",
     value: 1,
     importance,

@@ -19,6 +19,18 @@ let savedEntries = [];
 let mode = "since"; // since | until
 let importanceFilter = "all"; // all | normal | important | very-important
 
+function setTodayIfEmpty() {
+  if (!singleDateInput) return;
+  if (singleDateInput.value) return;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const yyyy = today.getFullYear();
+  const mm = String(today.getMonth() + 1).padStart(2, "0");
+  const dd = String(today.getDate()).padStart(2, "0");
+  singleDateInput.value = `${yyyy}-${mm}-${dd}`;
+}
+
 function parseDate(input) {
   const value = input.value;
   if (!value) return null;
@@ -131,6 +143,9 @@ function restoreState() {
     const state = JSON.parse(raw);
 
     singleDateInput.value = state.singleDate || "";
+    if (!state.singleDate) {
+      setTodayIfEmpty();
+    }
     mode = state.mode === "until" ? "until" : "since";
 
     if (mode === "since") {
@@ -448,4 +463,25 @@ saveEntryBtn.addEventListener("click", () => {
   savedEntries.push(entry);
   saveSavedEntries();
   renderSavedEntries();
+
+  // بعد الحفظ، نخفي النتيجة الحالية لنبدأ بتاريخ جديد
+  resultText.textContent = "";
+  resultEquivalent.textContent = "";
+  resultDetails.textContent = "";
+  resultCard.hidden = true;
+  if (resultPlaceholder) {
+    resultPlaceholder.hidden = false;
+  }
+  // مسح التاريخ المختار حتى لا يعيد زر الوضع (منذ/حتى) عرض النتيجة القديمة
+  if (singleDateInput) {
+    singleDateInput.value = "";
+    setTodayIfEmpty();
+  }
+
+  saveState({
+    resultVisible: false,
+    resultText: "",
+    resultEquivalent: "",
+    resultDetails: "",
+  });
 });

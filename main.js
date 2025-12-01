@@ -18,6 +18,8 @@ const STORAGE_SAVED_KEY = "dayCounterSaved";
 let savedEntries = [];
 let mode = "since"; // since | until
 let importanceFilter = "all"; // all | normal | important | very-important
+let lastDaysValue = null; // القيمة العددية للأيام في آخر حساب
+let lastIsRemaining = false; // هل كانت الحالة "بقي" (موعد قادم)
 
 function setTodayIfEmpty() {
   if (!singleDateInput) return;
@@ -205,6 +207,13 @@ function renderSavedEntries() {
   visibleEntries.forEach((entry, index) => {
     const tr = document.createElement("tr");
 
+    // في حال كانت المدة موعدًا قادمًا وبقي أقل من 5 أيام، نميز الصف بإطار ذهبي يومض
+    if (entry.remainingIsFuture && typeof entry.remainingDays === "number") {
+      if (entry.remainingDays > 0 && entry.remainingDays < 5) {
+        tr.classList.add("near-event-row");
+      }
+    }
+
     const tdRemaining = document.createElement("td");
     const tdValue = document.createElement("td");
     const tdNote = document.createElement("td");
@@ -357,6 +366,7 @@ function calculate() {
 
   const abs = Math.abs(days);
   let verb;
+  let isRemaining = false;
 
   if (abs === 0) {
     resultText.textContent = "0 يوم";
@@ -365,8 +375,10 @@ function calculate() {
   } else {
     if (days > 0) {
       verb = "مر";
+      isRemaining = false;
     } else if (days < 0) {
       verb = "بقي";
+      isRemaining = true;
     }
     resultText.innerHTML = `<span class="result-verb-red">${verb}</span> ${abs} يوم`;
     resultEquivalent.textContent = formatYearsAndDays(days);
@@ -379,6 +391,10 @@ function calculate() {
       resultDetails.innerHTML = `تبقى ${abs} يوم حتى ${formatBothCalendars(target)} من اليوم (${formatBothCalendars(today)}).`;
     }
   }
+
+  // تخزين معلومات آخر حساب لاستخدامها عند الحفظ في الجدول
+  lastDaysValue = abs;
+  lastIsRemaining = isRemaining;
 
   resultCard.hidden = false;
   if (resultPlaceholder) {
@@ -468,6 +484,8 @@ saveEntryBtn.addEventListener("click", () => {
     detailsText: resultDetails.innerHTML || "",
     // حقل قديم للإبقاء على التوافق مع المدد الأقدم
     remainingText: daysHtml || resultEquivalent.textContent,
+    remainingDays: lastDaysValue,
+    remainingIsFuture: lastIsRemaining,
     value: 1,
     importance,
     note,

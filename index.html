@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>عداد الأيام</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="app-header">
+      <h1>عداد الأيام</h1>
+      <p>احسب عدد الأيام بين تاريخين أو منذ / حتى تاريخ معين</p>
+    </header>
+
+    <main class="app-main">
+      <section class="card">
+        <div class="date-card-header">
+          <span class="date-card-title">اختر تاريخاً</span>
+        </div>
+
+        <div class="field-group single-date-group">
+          <div class="date-input-wrapper" id="single-date-wrapper">
+            <input type="date" id="single-date" />
+          </div>
+        </div>
+
+        <div class="mode-toggle">
+          <button id="mode-since" class="mode-btn active">منذ التاريخ</button>
+          <button id="mode-until" class="mode-btn">حتى التاريخ</button>
+        </div>
+
+        <div class="result-placeholder" id="result-placeholder">
+          يرجى اختيار تاريخ لعرض النتيجة
+        </div>
+      </section>
+
+      <section class="result-card" id="result-card" hidden>
+        <h2>النتيجة</h2>
+        <p id="result-text"></p>
+        <p id="result-equivalent" class="result-equivalent"></p>
+        <p id="result-details" class="result-details"></p>
+      </section>
+
+      <section class="helper-text">
+        <p>تذكير: يتم الحساب بالاعتماد على الأيام الكاملة فقط بدون كسور الساعات.</p>
+      </section>
+
+      <section class="saved-section">
+        <div class="saved-header">
+          <h2>المدد المحفوظة</h2>
+          <span id="saved-count" class="saved-count"></span>
+          <div class="saved-controls">
+            <label for="importance">الأهمية</label>
+            <select id="importance">
+              <option value="normal">عادي</option>
+              <option value="important">مهم ⭐</option>
+              <option value="very-important">مهم جدًا ⭐⭐</option>
+            </select>
+            <button id="save-entry-btn" class="secondary-btn">حفظ المدة الحالية في الجدول</button>
+          </div>
+          <div class="saved-filters">
+            <span class="saved-filters-label">تصفية حسب الأهمية:</span>
+            <button class="filter-btn active" data-importance="all" id="filter-all">الكل</button>
+            <button class="filter-btn" data-importance="normal" id="filter-normal">عادي</button>
+            <button class="filter-btn" data-importance="important" id="filter-important">مهم</button>
+            <button class="filter-btn" data-importance="very-important" id="filter-very-important">مهم جدًا</button>
+          </div>
+        </div>
+
+        <div class="saved-table-wrapper">
+          <table class="saved-table">
+            <thead>
+              <tr>
+                <th>المدة المتبقية</th>
+                <th>العدد / القيمة</th>
+                <th>الملاحظة</th>
+                <th>مهم جدًا</th>
+                <th>مهم</th>
+                <th>عادي</th>
+                <th>إظهار / إخفاء</th>
+                <th>تحريك</th>
+                <th>حذف</th>
+              </tr>
+            </thead>
+            <tbody id="saved-table-body">
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+    <footer class="app-footer">
+      <span>حقوق الملكية mohsen</span>
+    </footer>
+  </div>
+
+  <script src="main.js"></script>
+</body>
+</html>

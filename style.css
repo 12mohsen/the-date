@@ -1,0 +1,380 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+body {
+  background: linear-gradient(135deg, #1e293b, #0f172a);
+  min-height: 100vh;
+  color: #e5e7eb;
+  display: block;
+  padding: 16px 0;
+}
+
+.app {
+  width: 100%;
+  max-width: 900px;
+  padding: 24px 24px 8px;
+  margin: 0 auto;
+}
+
+.app-header {
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.app-header h1 {
+  font-size: 2rem;
+  margin-bottom: 8px;
+}
+
+.app-header p {
+  color: #9ca3af;
+  font-size: 0.95rem;
+}
+
+.app-main {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.app-footer {
+  margin-top: 16px;
+  text-align: center;
+  font-size: 0.8rem;
+  color: #6b7280;
+}
+
+.card,
+.result-card {
+  background: rgba(15, 23, 42, 0.9);
+  border-radius: 16px;
+  padding: 20px 18px;
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+}
+
+.date-card-header {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 8px;
+}
+
+.date-card-title {
+  font-size: 0.95rem;
+  color: #e5e7eb;
+}
+
+.date-input-wrapper {
+  width: 100%;
+}
+
+.date-input-wrapper input[type="date"] {
+  width: 100%;
+}
+
+.mode-toggle {
+  display: inline-flex;
+  margin-top: 10px;
+  background: #020617;
+  border-radius: 999px;
+  padding: 4px;
+  gap: 4px;
+}
+
+.mode-btn {
+  flex: 1;
+  border-radius: 999px;
+  border: none;
+  padding: 6px 10px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  background: transparent;
+  color: #9ca3af;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mode-btn.active {
+  background: #0f172a;
+  color: #22c55e;
+}
+
+.result-placeholder {
+  margin-top: 14px;
+  padding: 18px 12px;
+  border-radius: 14px;
+  background: #020617;
+  border: 1px solid #1f2937;
+  text-align: center;
+  font-size: 0.9rem;
+  color: #9ca3af;
+}
+
+.field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+label {
+  font-size: 0.9rem;
+  color: #cbd5f5;
+}
+
+select,
+input[type="date"] {
+  background: #020617;
+  color: #e5e7eb;
+  border-radius: 10px;
+  border: 1px solid #334155;
+  padding: 10px 12px;
+  font-size: 0.95rem;
+  outline: none;
+}
+
+select:focus,
+input[type="date"]:focus {
+  border-color: #38bdf8;
+  box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.5);
+}
+
+.dates-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.primary-btn {
+  width: 100%;
+  margin-top: 8px;
+  padding: 10px 14px;
+  border-radius: 999px;
+  border: none;
+  background: linear-gradient(135deg, #0ea5e9, #22c55e);
+  color: white;
+  font-weight: 600;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: transform 0.08s ease, box-shadow 0.08s ease, filter 0.12s ease;
+}
+
+.primary-btn:hover {
+  filter: brightness(1.03);
+  box-shadow: 0 15px 35px rgba(34, 197, 94, 0.35);
+}
+
+.primary-btn:active {
+  transform: translateY(1px) scale(0.99);
+  box-shadow: 0 8px 15px rgba(34, 197, 94, 0.3);
+}
+
+.result-card h2 {
+  margin-bottom: 8px;
+  font-size: 1.2rem;
+}
+
+#result-text {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.result-equivalent {
+  font-size: 0.95rem;
+  color: #4ade80; /* أخضر فاتح لتمييز "ما يعادل" */
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.result-details {
+  font-size: 0.9rem;
+  color: #9ca3af; /* رمادي أهدأ لسطر التفاصيل */
+}
+
+.result-details .date-greg,
+.saved-details .date-greg,
+.date-greg {
+  font-weight: 700;
+  color: #facc15;
+  font-size: 1rem;
+}
+
+.result-details .date-hijri,
+.saved-details .date-hijri,
+.date-hijri {
+  color: #a5b4fc;
+}
+
+.helper-text {
+  font-size: 0.8rem;
+  color: #9ca3af;
+  text-align: center;
+}
+
+.saved-section {
+  background: rgba(15, 23, 42, 0.9);
+  border-radius: 16px;
+  padding: 16px 14px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+}
+
+.saved-header {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.saved-header h2 {
+  font-size: 1.1rem;
+}
+
+.saved-count {
+  font-size: 0.85rem;
+  color: #9ca3af;
+}
+
+.saved-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.saved-controls select {
+  min-width: 140px;
+}
+
+.saved-filters {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.saved-filters-label {
+  font-size: 0.8rem;
+  color: #9ca3af;
+}
+
+.filter-btn {
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid #4b5563;
+  background: #020617;
+  color: #e5e7eb;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.filter-btn.active {
+  background: #0f172a;
+  border-color: #22c55e;
+  color: #22c55e;
+}
+
+.secondary-btn {
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid #4b5563;
+  background: #020617;
+  color: #e5e7eb;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.secondary-btn:hover {
+  background: #111827;
+  border-color: #6b7280;
+}
+
+.saved-table-wrapper {
+  margin-top: 8px;
+  max-height: 260px;
+  overflow-y: auto;
+  overflow-x: auto;
+}
+
+.saved-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.saved-table thead {
+  background: #111827;
+}
+
+.saved-table th,
+.saved-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid #1f2937;
+  text-align: center;
+}
+
+.saved-table tbody tr:nth-child(even) {
+  background: rgba(15, 23, 42, 0.7);
+}
+
+.saved-table tbody tr:nth-child(odd) {
+  background: rgba(15, 23, 42, 0.4);
+}
+
+.star {
+  color: #facc15;
+  font-size: 1rem;
+}
+
+.no-star {
+  color: #9ca3af;
+}
+
+.saved-details {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.8rem;
+  color: #9ca3af;
+}
+
+.saved-equivalent {
+  color: #4ade80; /* نفس لون "ما يعادل" في النتيجة الرئيسية */
+  font-weight: 600;
+}
+
+.toggle-btn {
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid #4b5563;
+  background: #020617;
+  color: #e5e7eb;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.toggle-btn:hover {
+  background: #111827;
+}
+
+@media (max-width: 640px) {
+  .app {
+    padding: 16px;
+  }
+
+  .card,
+  .result-card {
+    padding: 16px 14px;
+  }
+
+  .app-header h1 {
+    font-size: 1.6rem;
+  }
+}

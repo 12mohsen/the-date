@@ -74,7 +74,8 @@ function formatBothCalendars(date) {
   if (g === h) {
     return `<span class="date-greg">${g}</span>`;
   }
-  return `<span class="date-greg">${g} م</span> <span class="date-hijri">(${h} هـ)</span>`;
+  // التنسيق الهجري القادم من Intl يتضمن "هـ" بالفعل، لذلك لا نضيفها يدويًا حتى لا تتكرر
+  return `<span class="date-greg">${g} م</span> <span class="date-hijri">(${h})</span>`;
 }
 
 function formatYearsAndDays(days) {
@@ -223,14 +224,22 @@ function renderSavedEntries() {
     if (entry.hidden) {
       tdRemaining.textContent = "مخفي";
     } else {
-      const top = entry.remainingText || "-";
-      const bottom = entry.detailsText || "";
-      const topHtml = `<span class="saved-equivalent">${top}</span>`;
-      if (bottom) {
-        tdRemaining.innerHTML = `${topHtml}<br><span class="saved-details">${bottom}</span>`;
-      } else {
-        tdRemaining.innerHTML = topHtml;
+      const mainLine = entry.mainText || entry.remainingText || "";
+      const equivLine = entry.equivalentText || "";
+      const detailsLine = entry.detailsText || "";
+
+      const parts = [];
+      if (mainLine) {
+        parts.push(mainLine);
       }
+      if (equivLine) {
+        parts.push(`<span class="saved-equivalent">${equivLine}</span>`);
+      }
+      if (detailsLine) {
+        parts.push(`<span class="saved-details">${detailsLine}</span>`);
+      }
+
+      tdRemaining.innerHTML = parts.join("<br>") || "-";
     }
 
     // الأعمدة الأخرى تبقى دائمًا ظاهرة
@@ -451,9 +460,14 @@ saveEntryBtn.addEventListener("click", () => {
 
   const entry = {
     id: Date.now(),
-    // نستخدم نفس محتوى سطر النتيجة حتى تبقى كلمتا "مر/بقي" باللون الأحمر في الجدول
-    remainingText: daysHtml || resultEquivalent.textContent,
+    // السطر الأول: "مر / بقي X يوم" مع اللون الأحمر
+    mainText: daysHtml,
+    // السطر الثاني: "ما يعادل ..."
+    equivalentText: resultEquivalent.textContent || "",
+    // السطر الثالث: تفاصيل من/إلى
     detailsText: resultDetails.innerHTML || "",
+    // حقل قديم للإبقاء على التوافق مع المدد الأقدم
+    remainingText: daysHtml || resultEquivalent.textContent,
     value: 1,
     importance,
     note,

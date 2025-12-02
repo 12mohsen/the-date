@@ -9,7 +9,7 @@ const resultDetails = document.getElementById("result-details");
 const resultPlaceholder = document.getElementById("result-placeholder");
 const importanceSelect = document.getElementById("importance");
 const saveEntryBtn = document.getElementById("save-entry-btn");
-const savedTableBody = document.getElementById("saved-table-body");
+const savedList = document.getElementById("saved-list");
 const savedCountEl = document.getElementById("saved-count");
 const filterButtons = document.querySelectorAll(".filter-btn");
 const STORAGE_KEY = "dayCounterState";
@@ -20,6 +20,7 @@ let mode = "since"; // since | until
 let importanceFilter = "all"; // all | normal | important | very-important
 let lastDaysValue = null; // القيمة العددية للأيام في آخر حساب
 let lastIsRemaining = false; // هل كانت الحالة "بقي" (موعد قادم)
+let lastTargetGregorian = ""; // التاريخ الهدف (ميلادي) لآخر حساب
 
 function setTodayIfEmpty() {
   if (!singleDateInput) return;
@@ -195,9 +196,9 @@ function loadSavedEntries() {
 }
 
 function renderSavedEntries() {
-  if (!savedTableBody) return;
+  if (!savedList) return;
 
-  savedTableBody.innerHTML = "";
+  savedList.innerHTML = "";
 
   const visibleEntries = savedEntries.filter((entry) => {
     if (importanceFilter === "all") return true;
@@ -205,67 +206,74 @@ function renderSavedEntries() {
   });
 
   visibleEntries.forEach((entry, index) => {
-    const tr = document.createElement("tr");
+    const item = document.createElement("div");
+    item.className = "saved-item";
 
-    // في حال كانت المدة موعدًا قادمًا وبقي أقل من 5 أيام، نميز الصف بإطار ذهبي يومض
+    // تلوين الحد الجانبي حسب الأهمية
+    if (entry.importance === "very-important") {
+      item.classList.add("very-important-border");
+    } else if (entry.importance === "important") {
+      item.classList.add("important-border");
+    } else {
+      item.classList.add("normal-border");
+    }
+
+    // في حال كانت المدة موعدًا قادمًا وبقي أقل من 5 أيام، نميزها أيضًا بكلاس الوميض
     if (entry.remainingIsFuture && typeof entry.remainingDays === "number") {
       if (entry.remainingDays > 0 && entry.remainingDays < 5) {
-        tr.classList.add("near-event-row");
+        item.classList.add("near-event-row");
       }
     }
 
-    const tdRemaining = document.createElement("td");
-    const tdValue = document.createElement("td");
-    const tdNote = document.createElement("td");
+    const left = document.createElement("div");
+    left.className = "saved-item-main";
 
-    const tdVeryImportant = document.createElement("td");
-    const tdImportant = document.createElement("td");
-    const tdNormal = document.createElement("td");
-    const tdToggle = document.createElement("td");
-    const tdMove = document.createElement("td");
-    const tdDelete = document.createElement("td");
+    const titleRow = document.createElement("div");
+    titleRow.className = "saved-item-meta";
 
-    tdVeryImportant.className = "no-star";
-    tdImportant.className = "no-star";
-    tdNormal.className = "no-star";
+    const title = document.createElement("span");
+    title.className = "saved-item-title";
+    title.textContent = entry.note || "-";
 
-    // المدة المتبقية: تُخفى عند hidden
+    const stars = document.createElement("span");
+    stars.className = "saved-item-stars";
+    if (entry.importance === "very-important") {
+      stars.innerHTML = "<span class='star'>★★</span>";
+    } else if (entry.importance === "important") {
+      stars.innerHTML = "<span class='star'>★</span>";
+    }
+
+    titleRow.appendChild(title);
+    if (stars.innerHTML) {
+      titleRow.appendChild(stars);
+    }
+
+    const remainingLine = document.createElement("div");
+    remainingLine.className = "saved-item-remaining";
     if (entry.hidden) {
-      tdRemaining.textContent = "مخفي";
+      remainingLine.textContent = "مخفي";
     } else {
       const mainLine = entry.mainText || entry.remainingText || "";
       const equivLine = entry.equivalentText || "";
-      const detailsLine = entry.detailsText || "";
-
       const parts = [];
-      if (mainLine) {
-        parts.push(mainLine);
-      }
-      if (equivLine) {
-        parts.push(`<span class="saved-equivalent">${equivLine}</span>`);
-      }
-      if (detailsLine) {
-        parts.push(`<span class="saved-details">${detailsLine}</span>`);
-      }
-
-      tdRemaining.innerHTML = parts.join("<br>") || "-";
+      if (mainLine) parts.push(mainLine);
+      if (equivLine) parts.push(equivLine);
+      remainingLine.innerHTML = parts.join("<br>") || "-";
     }
 
-    // الأعمدة الأخرى تبقى دائمًا ظاهرة
-    tdValue.textContent = entry.value ?? "1";
-    tdNote.textContent = entry.note || "-";
+    left.appendChild(titleRow);
+    left.appendChild(remainingLine);
 
-    if (entry.importance === "very-important") {
-      tdVeryImportant.innerHTML = '<span class="star">★★</span>';
-    } else if (entry.importance === "important") {
-      tdImportant.innerHTML = '<span class="star">★</span>';
-    } else {
-      tdNormal.textContent = "لا يوجد نجمة";
+    // تاريخ الهدف الميلادي يظهر كسطر إضافي تحت المدة المتبقية
+    if (entry.targetDate) {
+      const dateLine = document.createElement("div");
+      dateLine.className = "saved-item-date";
+      dateLine.textContent = entry.targetDate;
+      left.appendChild(dateLine);
     }
 
-    tr.appendChild(tdRemaining);
-    tr.appendChild(tdValue);
-    tr.appendChild(tdNote);
+    const right = document.createElement("div");
+    right.className = "saved-item-actions";
     const toggleBtn = document.createElement("button");
     toggleBtn.className = "toggle-btn";
     toggleBtn.textContent = entry.hidden ? "إظهار" : "إخفاء";
@@ -275,7 +283,7 @@ function renderSavedEntries() {
       renderSavedEntries();
     });
 
-    tdToggle.appendChild(toggleBtn);
+    right.appendChild(toggleBtn);
 
     const deleteBtn = document.createElement("button");
     deleteBtn.className = "toggle-btn";
@@ -289,7 +297,7 @@ function renderSavedEntries() {
       renderSavedEntries();
     });
 
-    tdDelete.appendChild(deleteBtn);
+    right.appendChild(deleteBtn);
 
     const moveUpBtn = document.createElement("button");
     moveUpBtn.className = "toggle-btn";
@@ -319,17 +327,13 @@ function renderSavedEntries() {
       renderSavedEntries();
     });
 
-    tdMove.appendChild(moveUpBtn);
-    tdMove.appendChild(moveDownBtn);
+    right.appendChild(moveUpBtn);
+    right.appendChild(moveDownBtn);
 
-    tr.appendChild(tdVeryImportant);
-    tr.appendChild(tdImportant);
-    tr.appendChild(tdNormal);
-    tr.appendChild(tdToggle);
-    tr.appendChild(tdMove);
-    tr.appendChild(tdDelete);
+    item.appendChild(left);
+    item.appendChild(right);
 
-    savedTableBody.appendChild(tr);
+    savedList.appendChild(item);
   });
 
   if (savedCountEl) {
@@ -367,6 +371,9 @@ function calculate() {
   const abs = Math.abs(days);
   let verb;
   let isRemaining = false;
+
+  // حفظ التاريخ الهدف الميلادي لعرضه في المدد المحفوظة
+  lastTargetGregorian = formatGregorian(target);
 
   if (abs === 0) {
     resultText.textContent = "0 يوم";
@@ -486,6 +493,7 @@ saveEntryBtn.addEventListener("click", () => {
     remainingText: daysHtml || resultEquivalent.textContent,
     remainingDays: lastDaysValue,
     remainingIsFuture: lastIsRemaining,
+    targetDate: lastTargetGregorian,
     value: 1,
     importance,
     note,

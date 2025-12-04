@@ -239,6 +239,8 @@ function renderSavedEntries() {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
+  let migratedAny = false;
+
   visibleEntries.forEach((entry, index) => {
     const item = document.createElement("div");
     item.className = "saved-item";
@@ -258,37 +260,62 @@ function renderSavedEntries() {
     let blinkDays = null;
     let blinkIsFuture = false;
 
+    // نحاول أولاً الحصول على تاريخ هدف خام، وإن لم يكن موجودًا نحاول استنتاجه من targetDate
+    let targetForCalc = null;
+
     if (entry.targetDateRaw) {
-      const target = new Date(entry.targetDateRaw + "T00:00:00");
-      if (!isNaN(target.getTime())) {
-        let days;
-        if (entry.modeAtSave === "since") {
-          days = diffInDays(target, today);
-        } else {
-          days = diffInDays(today, target);
-        }
-
-        const abs = Math.abs(days);
-        let verb = "";
-        if (days > 0) {
-          verb = "مر";
-          blinkIsFuture = false;
-        } else if (days < 0) {
-          verb = "بقي";
-          blinkIsFuture = true;
-        }
-
-        if (abs === 0) {
-          dynamicMainLine = "0 يوم";
-        } else if (verb) {
-          dynamicMainLine = `<span class="result-verb-red">${verb}</span> ${abs} يوم`;
-        } else {
-          dynamicMainLine = `${abs} يوم`;
-        }
-
-        dynamicEquivLine = formatYearsAndDays(days);
-        blinkDays = abs;
+      const t = new Date(entry.targetDateRaw + "T00:00:00");
+      if (!isNaN(t.getTime())) {
+        targetForCalc = t;
       }
+    } else if (entry.targetDate) {
+      const t = new Date(entry.targetDate);
+      if (!isNaN(t.getTime())) {
+        targetForCalc = t;
+
+        // نحاول ترقية المدة القديمة لتخزين targetDateRaw و modeAtSave
+        const yyyy = t.getFullYear();
+        const mm = String(t.getMonth() + 1).padStart(2, "0");
+        const dd = String(t.getDate()).padStart(2, "0");
+        entry.targetDateRaw = `${yyyy}-${mm}-${dd}`;
+
+        if (!entry.modeAtSave) {
+          // تخمين منطقي: إذا كان التاريخ في الماضي نعتبرها "منذ"، وإذا في المستقبل نعتبرها "حتى"
+          entry.modeAtSave = t <= today ? "since" : "until";
+        }
+
+        migratedAny = true;
+      }
+    }
+
+    if (targetForCalc) {
+      let days;
+      if (entry.modeAtSave === "since") {
+        days = diffInDays(targetForCalc, today);
+      } else {
+        days = diffInDays(today, targetForCalc);
+      }
+
+      const abs = Math.abs(days);
+      let verb = "";
+      if (days > 0) {
+        verb = "مر";
+        blinkIsFuture = false;
+      } else if (days < 0) {
+        verb = "بقي";
+        blinkIsFuture = true;
+      }
+
+      if (abs === 0) {
+        dynamicMainLine = "0 يوم";
+      } else if (verb) {
+        dynamicMainLine = `<span class="result-verb-red">${verb}</span> ${abs} يوم`;
+      } else {
+        dynamicMainLine = `${abs} يوم`;
+      }
+
+      dynamicEquivLine = formatYearsAndDays(days);
+      blinkDays = abs;
     }
 
     // إذا تعذر الحساب الديناميكي نستخدم القيم المخزنة القديمة

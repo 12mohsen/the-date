@@ -12,8 +12,10 @@ const saveEntryBtn = document.getElementById("save-entry-btn");
 const savedList = document.getElementById("saved-list");
 const savedCountEl = document.getElementById("saved-count");
 const filterButtons = document.querySelectorAll(".filter-btn");
+const themeToggleBtn = document.getElementById("theme-toggle");
 const STORAGE_KEY = "dayCounterState";
 const STORAGE_SAVED_KEY = "dayCounterSaved";
+const STORAGE_THEME_KEY = "dayCounterTheme";
 
 let savedEntries = [];
 let mode = "since"; // since | until
@@ -21,6 +23,27 @@ let importanceFilter = "all"; // all | normal | important | very-important
 let lastDaysValue = null; // القيمة العددية للأيام في آخر حساب
 let lastIsRemaining = false; // هل كانت الحالة "بقي" (موعد قادم)
 let lastTargetGregorian = ""; // التاريخ الهدف (ميلادي) لآخر حساب
+
+function applyTheme(theme) {
+  const body = document.body;
+  if (theme === "light") {
+    body.classList.add("light-theme");
+    if (themeToggleBtn) themeToggleBtn.textContent = "☀";
+  } else {
+    body.classList.remove("light-theme");
+    if (themeToggleBtn) themeToggleBtn.textContent = "☾";
+  }
+}
+
+function loadTheme() {
+  try {
+    const stored = localStorage.getItem(STORAGE_THEME_KEY);
+    const theme = stored === "light" ? "light" : "dark";
+    applyTheme(theme);
+  } catch (e) {
+    applyTheme("dark");
+  }
+}
 
 function setTodayIfEmpty() {
   if (!singleDateInput) return;
@@ -54,6 +77,14 @@ function formatGregorian(date) {
     year: "numeric",
   });
   return fmt.format(date);
+}
+
+// تنسيق ميلادي رقمي بسيط بالشكل: 4/12/2025
+function formatGregorianNumeric(date) {
+  const d = date.getDate();
+  const m = date.getMonth() + 1;
+  const y = date.getFullYear();
+  return `${d}/${m}/${y}`;
 }
 
 function formatHijri(date) {
@@ -205,6 +236,9 @@ function renderSavedEntries() {
     return entry.importance === importanceFilter;
   });
 
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
   visibleEntries.forEach((entry, index) => {
     const item = document.createElement("div");
     item.className = "saved-item";
@@ -218,9 +252,64 @@ function renderSavedEntries() {
       item.classList.add("normal-border");
     }
 
-    // في حال كانت المدة موعدًا قادمًا وبقي أقل من 5 أيام، نميزها أيضًا بكلاس الوميض
-    if (entry.remainingIsFuture && typeof entry.remainingDays === "number") {
-      if (entry.remainingDays > 0 && entry.remainingDays < 5) {
+    // إعادة حساب المدة ديناميكيًا (مر/بقي وعدد الأيام) إن توفّر تاريخ هدف خام
+    let dynamicMainLine = "";
+    let dynamicEquivLine = "";
+    let blinkDays = null;
+    let blinkIsFuture = false;
+
+    if (entry.targetDateRaw) {
+      const target = new Date(entry.targetDateRaw + "T00:00:00");
+      if (!isNaN(target.getTime())) {
+        let days;
+        if (entry.modeAtSave === "since") {
+          days = diffInDays(target, today);
+        } else {
+          days = diffInDays(today, target);
+        }
+
+        const abs = Math.abs(days);
+        let verb = "";
+        if (days > 0) {
+          verb = "مر";
+          blinkIsFuture = false;
+        } else if (days < 0) {
+          verb = "بقي";
+          blinkIsFuture = true;
+        }
+
+        if (abs === 0) {
+          dynamicMainLine = "0 يوم";
+        } else if (verb) {
+          dynamicMainLine = `<span class="result-verb-red">${verb}</span> ${abs} يوم`;
+        } else {
+          dynamicMainLine = `${abs} يوم`;
+        }
+
+        dynamicEquivLine = formatYearsAndDays(days);
+        blinkDays = abs;
+      }
+    }
+
+    // إذا تعذر الحساب الديناميكي نستخدم القيم المخزنة القديمة
+    if (!dynamicMainLine && (entry.mainText || entry.remainingText)) {
+      dynamicMainLine = entry.mainText || entry.remainingText || "";
+    }
+    if (!dynamicEquivLine && entry.equivalentText) {
+      dynamicEquivLine = entry.equivalentText;
+    }
+
+    // في حال كانت المدة موعدًا قادمًا وبقي أقل من 5 أيام، نميزها بكلاس الوميض
+    let finalBlinkDays = blinkDays;
+    let finalBlinkIsFuture = blinkIsFuture;
+
+    if (finalBlinkDays == null && typeof entry.remainingDays === "number") {
+      finalBlinkDays = entry.remainingDays;
+      finalBlinkIsFuture = !!entry.remainingIsFuture;
+    }
+
+    if (finalBlinkIsFuture && typeof finalBlinkDays === "number") {
+      if (finalBlinkDays > 0 && finalBlinkDays < 5) {
         item.classList.add("near-event-row");
       }
     }
@@ -253,24 +342,46 @@ function renderSavedEntries() {
     if (entry.hidden) {
       remainingLine.textContent = "مخفي";
     } else {
-      const mainLine = entry.mainText || entry.remainingText || "";
-      const equivLine = entry.equivalentText || "";
       const parts = [];
-      if (mainLine) parts.push(mainLine);
-      if (equivLine) parts.push(equivLine);
+      if (dynamicMainLine) parts.push(dynamicMainLine);
+      if (dynamicEquivLine) parts.push(dynamicEquivLine);
+
+      // إضافة سطرين "من" و"الى" باستخدام تاريخ الهدف وتاريخ اليوم
+      let fromText = "";
+      let toText = "";
+
+      if (entry.targetDate || entry.targetDateRaw) {
+        // إذا كان لدينا التاريخ الخام نحسب ترتيب من/الى زمنيًا
+        if (entry.targetDateRaw) {
+          const targetTmp = new Date(entry.targetDateRaw + "T00:00:00");
+          if (!isNaN(targetTmp.getTime())) {
+            const fromDate = targetTmp < today ? targetTmp : today;
+            const toDate = targetTmp < today ? today : targetTmp;
+
+            fromText = formatGregorianNumeric(fromDate);
+            toText = formatGregorianNumeric(toDate);
+          }
+        } else {
+          // في المدد القديمة بدون targetDateRaw نستخدم النص الجاهز مع تاريخ اليوم الحالي
+          const targetDisplay = entry.targetDate || "";
+          const todayDisplay = formatGregorian(today);
+          fromText = targetDisplay;
+          toText = todayDisplay;
+        }
+      }
+
+      if (fromText && toText) {
+        parts.push(`من ${fromText}`);
+        parts.push(`الى ${toText}`);
+      }
+
       remainingLine.innerHTML = parts.join("<br>") || "-";
     }
 
     left.appendChild(titleRow);
     left.appendChild(remainingLine);
 
-    // تاريخ الهدف الميلادي يظهر كسطر إضافي تحت المدة المتبقية
-    if (entry.targetDate) {
-      const dateLine = document.createElement("div");
-      dateLine.className = "saved-item-date";
-      dateLine.textContent = entry.targetDate;
-      left.appendChild(dateLine);
-    }
+    // لم نعد نحتاج سطرًا منفصلًا للتاريخ فقط، لأننا نعرض "من" و"الى" داخل المدة
 
     const right = document.createElement("div");
     right.className = "saved-item-actions";
@@ -413,6 +524,7 @@ function calculate() {
 restoreState();
 loadSavedEntries();
 renderSavedEntries();
+loadTheme();
 
 if (modeSinceBtn && modeUntilBtn) {
   modeSinceBtn.addEventListener("click", () => {
@@ -427,6 +539,19 @@ if (modeSinceBtn && modeUntilBtn) {
     modeUntilBtn.classList.add("active");
     modeSinceBtn.classList.remove("active");
     calculate();
+  });
+}
+
+if (themeToggleBtn) {
+  themeToggleBtn.addEventListener("click", () => {
+    const isLight = document.body.classList.contains("light-theme");
+    const next = isLight ? "dark" : "light";
+    applyTheme(next);
+    try {
+      localStorage.setItem(STORAGE_THEME_KEY, next);
+    } catch (e) {
+      // تجاهل أي خطأ في التخزين
+    }
   });
 }
 
@@ -481,6 +606,9 @@ saveEntryBtn.addEventListener("click", () => {
     return;
   }
 
+  // قراءة التاريخ الخام المستخدم في الحساب الحالي لدعم إعادة الحساب لاحقًا
+  const rawDateValue = singleDateInput.value || "";
+
   const entry = {
     id: Date.now(),
     // السطر الأول: "مر / بقي X يوم" مع اللون الأحمر
@@ -494,6 +622,9 @@ saveEntryBtn.addEventListener("click", () => {
     remainingDays: lastDaysValue,
     remainingIsFuture: lastIsRemaining,
     targetDate: lastTargetGregorian,
+    // قيم جديدة لدعم إعادة الحساب الديناميكي
+    targetDateRaw: rawDateValue,
+    modeAtSave: mode,
     value: 1,
     importance,
     note,

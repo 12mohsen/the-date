@@ -25,6 +25,77 @@ body {
   margin-bottom: 24px;
 }
 
+.theme-toggle-btn {
+  position: absolute;
+  left: 16px;
+  top: 16px;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  border: 1px solid #4b5563;
+  background: #020617;
+  color: #e5e7eb;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.theme-toggle-btn:hover {
+  background: #111827;
+}
+
+body.light-theme {
+  background: #e5e7eb; /* أغمق قليلاً من الأبيض الصافي */
+  color: #111827;
+}
+
+body.light-theme .app {
+  background: transparent;
+}
+
+body.light-theme .card,
+body.light-theme .result-card,
+body.light-theme .saved-item {
+  background: #f3f4f6; /* رمادي فاتح بدلاً من أبيض ناصع */
+  border-color: #d1d5db;
+}
+
+body.light-theme .app-header p {
+  color: #4b5563;
+}
+
+body.light-theme .mode-toggle {
+  background: #e5e7eb;
+}
+
+body.light-theme .mode-btn.active {
+  background: #ffffff;
+}
+
+body.light-theme .result-placeholder {
+  background: #e5e7eb;
+  border-color: #d1d5db;
+}
+
+body.light-theme .secondary-btn,
+body.light-theme .toggle-btn,
+body.light-theme .filter-btn {
+  background: #f3f4f6;
+  border-color: #cbd5e1;
+  color: #111827;
+}
+
+body.light-theme .saved-item-title,
+body.light-theme .saved-item-remaining {
+  color: #111827;
+}
+
+body.light-theme .saved-item-date {
+  color: #111827;
+}
+
 .app-header h1 {
   font-size: 2rem;
   margin-bottom: 8px;
@@ -333,11 +404,12 @@ input[type="date"]:focus {
 .saved-item-title {
   font-size: 0.9rem;
   font-weight: 600;
+  color: #ffffff;
 }
 
 .saved-item-remaining {
   font-size: 0.8rem;
-  color: #4ade80;
+  color: #ffffff;
 }
 
 .saved-item-date {

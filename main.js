@@ -155,7 +155,6 @@ function formatYearsAndDays(days) {
 
 function saveState(extra = {}) {
   const state = {
-    singleDate: singleDateInput.value || "",
     mode,
     resultVisible: !resultCard.hidden,
     resultText: resultText.innerHTML,
@@ -177,8 +176,9 @@ function restoreState() {
     if (!raw) return;
     const state = JSON.parse(raw);
 
-    singleDateInput.value = state.singleDate || "";
-    if (!state.singleDate) {
+    // دائمًا نعيد ضبط حقل التاريخ إلى تاريخ اليوم عند فتح التطبيق
+    if (singleDateInput) {
+      singleDateInput.value = "";
       setTodayIfEmpty();
     }
     mode = state.mode === "until" ? "until" : "since";
@@ -191,14 +191,13 @@ function restoreState() {
       modeSinceBtn.classList.remove("active");
     }
 
-    if (state.resultVisible && state.resultText) {
-      resultText.innerHTML = state.resultText;
-      resultEquivalent.textContent = state.resultEquivalent || "";
-      resultDetails.innerHTML = state.resultDetails || "";
-      resultCard.hidden = false;
-      if (resultPlaceholder) {
-        resultPlaceholder.hidden = true;
-      }
+    // لا نسترجع نتيجة الحساب تلقائيًا عند فتح التطبيق
+    resultText.textContent = "";
+    resultEquivalent.textContent = "";
+    resultDetails.textContent = "";
+    resultCard.hidden = true;
+    if (resultPlaceholder) {
+      resultPlaceholder.hidden = false;
     }
   } catch (e) {
     // تجاهل أي خطأ في القراءة / التحويل
@@ -271,9 +270,10 @@ function renderSavedEntries() {
     } else if (entry.targetDate) {
       const t = new Date(entry.targetDate);
       if (!isNaN(t.getTime())) {
+        // نجحنا في تحويل النص المخزن إلى تاريخ
         targetForCalc = t;
 
-        // نحاول ترقية المدة القديمة لتخزين targetDateRaw و modeAtSave
+        // ترقية المدة القديمة لتخزين targetDateRaw و modeAtSave
         const yyyy = t.getFullYear();
         const mm = String(t.getMonth() + 1).padStart(2, "0");
         const dd = String(t.getDate()).padStart(2, "0");
@@ -282,6 +282,38 @@ function renderSavedEntries() {
         if (!entry.modeAtSave) {
           // تخمين منطقي: إذا كان التاريخ في الماضي نعتبرها "منذ"، وإذا في المستقبل نعتبرها "حتى"
           entry.modeAtSave = t <= today ? "since" : "until";
+        }
+
+        migratedAny = true;
+      }
+    }
+
+    // كخيار أخير: إذا لم ننجح في استنتاج التاريخ من النص، لكن لدينا remainingDays فنستنتج تاريخ الهدف من اليوم الحالي
+    if (!targetForCalc && typeof entry.remainingDays === "number") {
+      const msPerDay = 24 * 60 * 60 * 1000;
+      const base = new Date(today.getTime());
+      let inferred;
+
+      if (entry.remainingIsFuture) {
+        inferred = new Date(base.getTime() + entry.remainingDays * msPerDay);
+      } else {
+        inferred = new Date(base.getTime() - entry.remainingDays * msPerDay);
+      }
+
+      if (!isNaN(inferred.getTime())) {
+        targetForCalc = inferred;
+
+        const yyyy = inferred.getFullYear();
+        const mm = String(inferred.getMonth() + 1).padStart(2, "0");
+        const dd = String(inferred.getDate()).padStart(2, "0");
+        entry.targetDateRaw = `${yyyy}-${mm}-${dd}`;
+
+        if (!entry.targetDate) {
+          entry.targetDate = formatGregorian(inferred);
+        }
+
+        if (!entry.modeAtSave) {
+          entry.modeAtSave = entry.remainingIsFuture ? "until" : "since";
         }
 
         migratedAny = true;

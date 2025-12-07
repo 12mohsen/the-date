@@ -513,6 +513,9 @@ function calculate() {
     // منذ التاريخ حتى اليوم: نحسب فقط إذا كان التاريخ قبل أو يساوي اليوم
     if (target <= today) {
       days = diffInDays(target, today);
+      // تخزين هذا التاريخ كأساس لعبارة "منذ ..." لاستخدامه لاحقًا في وضع حتى التاريخ
+      lastSinceBaseGregorian = formatGregorian(target) + " م";
+      lastSinceBaseRaw = singleDateInput.value || "";
     } else {
       days = 0;
     }
@@ -543,9 +546,6 @@ function calculate() {
     if (mode === "since") {
       verb = "مضى";
       isRemaining = false;
-      // تخزين هذا التاريخ كأساس لعبارة "منذ ..." لاستخدامه لاحقًا في وضع حتى التاريخ
-      lastSinceBaseGregorian = formatGregorian(target) + " م";
-      lastSinceBaseRaw = singleDateInput.value || "";
     } else {
       verb = "متبقي";
       // نستخدم isFutureTarget لتحديد هل هو موعد قادم لأغراض الوميض

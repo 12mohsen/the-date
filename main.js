@@ -558,10 +558,10 @@ function calculate() {
       // مضت أيام من التاريخ المحدد حتى اليوم
       resultDetails.innerHTML = `مضت ${abs} يوم منذ ${formatBothCalendars(target)} حتى اليوم (${formatBothCalendars(today)}).`;
     } else {
-      // تبقّى أيام من اليوم حتى التاريخ المحدد
-      let details = `تبقى ${abs} يوم حتى ${formatBothCalendars(target)} من اليوم (${formatBothCalendars(today)}).`;
+      // تبقّى أيام من اليوم حتى التاريخ المحدد (سطر ذهبي)
+      let details = `<span class="details-gold">تبقى ${abs} يوم حتى ${formatBothCalendars(target)} من اليوم (${formatBothCalendars(today)}).</span>`;
 
-      // إذا كان لدينا تاريخ أساس من آخر حساب في وضع "منذ التاريخ"، نضيف سطرًا يلخص الفترة بين التاريخين
+      // إذا كان لدينا تاريخ أساس من آخر حساب في وضع "منذ التاريخ"، نضيف سطرًا يلخص الفترة بين التاريخين (سطر أحمر)
       const rawDateValue = singleDateInput.value || "";
       if (lastSinceBaseRaw && rawDateValue) {
         const base = new Date(lastSinceBaseRaw + "T00:00:00");
@@ -574,7 +574,7 @@ function calculate() {
           const fromText = formatGregorian(base) + " م";
           const toText = formatGregorian(untilDate) + " م";
 
-          // إزالة عبارة "ما يعادل" من بداية النص إن وُجدت للاستخدام داخل "تعادل"
+          // إزالة عبارة "ما يعادل" من بداية النص إن وُجدت، لنستخدمها داخل "تعادل" الخضراء
           let eqText = "";
           if (eqBetween) {
             eqText = eqBetween.replace(/^ما يعادل\s*/u, "");
@@ -582,7 +582,7 @@ function calculate() {
             eqText = `${absBetween} يوم`;
           }
 
-          details += `<br>منذ ${fromText} حتى ${toText} تعادل ${eqText}`;
+          details += `<br><span class="details-gold">منذ ${fromText} حتى ${toText}</span> <span class=\"details-equivalent\">تعادل ${eqText}</span>`;
         }
       }
 

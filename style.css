@@ -258,7 +258,21 @@ input[type="date"]:focus {
 }
 
 .result-verb-red {
-  color: #f87171; /* أحمر لطيف */
+  color: #f97373;
+  font-weight: 700;
+}
+
+.details-gold {
+  color: #fbbf24;
+}
+
+.details-red {
+  color: #f97373;
+}
+
+.details-equivalent {
+  color: #4ade80;
+  font-weight: 600;
 }
 
 .result-equivalent {

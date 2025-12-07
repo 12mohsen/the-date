@@ -23,6 +23,8 @@ let importanceFilter = "all"; // all | normal | important | very-important
 let lastDaysValue = null; // القيمة العددية للأيام في آخر حساب
 let lastIsRemaining = false; // هل كانت الحالة "بقي" (موعد قادم)
 let lastTargetGregorian = ""; // التاريخ الهدف (ميلادي) لآخر حساب
+let lastSinceBaseGregorian = ""; // آخر تاريخ استُخدم في وضع "منذ التاريخ" (ميلادي)
+let lastSinceBaseRaw = ""; // آخر تاريخ استُخدم في وضع "منذ التاريخ" (قيمة input yyyy-mm-dd)
 
 function applyTheme(theme) {
   const body = document.body;
@@ -329,13 +331,16 @@ function renderSavedEntries() {
       }
 
       const abs = Math.abs(days);
+
+      // اختيار الكلمة حسب الوضع الذي حُفظت به المدة، وليس حسب إشارة days
       let verb = "";
-      if (days > 0) {
-        verb = "مر";
+      if (entry.modeAtSave === "since") {
+        verb = "مضى";
         blinkIsFuture = false;
-      } else if (days < 0) {
-        verb = "بقي";
-        blinkIsFuture = true;
+      } else if (entry.modeAtSave === "until") {
+        verb = "متبقي";
+        // نعتبره موعدًا قادمًا إذا كان الهدف في المستقبل بالنسبة لليوم
+        blinkIsFuture = targetForCalc > today;
       }
 
       if (abs === 0) {
@@ -405,33 +410,9 @@ function renderSavedEntries() {
       if (dynamicMainLine) parts.push(dynamicMainLine);
       if (dynamicEquivLine) parts.push(dynamicEquivLine);
 
-      // إضافة سطرين "من" و"الى" باستخدام تاريخ الهدف وتاريخ اليوم
-      let fromText = "";
-      let toText = "";
-
-      if (entry.targetDate || entry.targetDateRaw) {
-        // إذا كان لدينا التاريخ الخام نحسب ترتيب من/الى زمنيًا
-        if (entry.targetDateRaw) {
-          const targetTmp = new Date(entry.targetDateRaw + "T00:00:00");
-          if (!isNaN(targetTmp.getTime())) {
-            const fromDate = targetTmp < today ? targetTmp : today;
-            const toDate = targetTmp < today ? today : targetTmp;
-
-            fromText = formatGregorianNumeric(fromDate);
-            toText = formatGregorianNumeric(toDate);
-          }
-        } else {
-          // في المدد القديمة بدون targetDateRaw نستخدم النص الجاهز مع تاريخ اليوم الحالي
-          const targetDisplay = entry.targetDate || "";
-          const todayDisplay = formatGregorian(today);
-          fromText = targetDisplay;
-          toText = todayDisplay;
-        }
-      }
-
-      if (fromText && toText) {
-        parts.push(`من ${fromText}`);
-        parts.push(`الى ${toText}`);
+      // إضافة نص التفاصيل الكامل كما ظهر في البطاقة (يشمل جملة تبقى/مرت وسطر منذ ...)
+      if (entry.detailsText) {
+        parts.push(entry.detailsText);
       }
 
       remainingLine.innerHTML = parts.join("<br>") || "-";
@@ -439,8 +420,6 @@ function renderSavedEntries() {
 
     left.appendChild(titleRow);
     left.appendChild(remainingLine);
-
-    // لم نعد نحتاج سطرًا منفصلًا للتاريخ فقط، لأننا نعرض "من" و"الى" داخل المدة
 
     const right = document.createElement("div");
     right.className = "saved-item-actions";
@@ -529,43 +508,85 @@ function calculate() {
     return;
   }
 
-  let days;
+  let days = 0;
   if (mode === "since") {
-    // منذ التاريخ حتى اليوم
-    days = diffInDays(target, today);
+    // منذ التاريخ حتى اليوم: نحسب فقط إذا كان التاريخ قبل أو يساوي اليوم
+    if (target <= today) {
+      days = diffInDays(target, today);
+    } else {
+      days = 0;
+    }
   } else {
-    // من اليوم حتى التاريخ
-    days = diffInDays(today, target);
+    // حتى التاريخ: نحسب فقط إذا كان التاريخ بعد اليوم
+    if (target > today) {
+      days = diffInDays(today, target);
+    } else {
+      days = 0;
+    }
   }
 
   const abs = Math.abs(days);
   let verb;
   let isRemaining = false;
+  const isFutureTarget = target > today;
 
   // حفظ التاريخ الهدف الميلادي لعرضه في المدد المحفوظة
   lastTargetGregorian = formatGregorian(target);
 
   if (abs === 0) {
+    // في حالة عدم تحقق شروط الماضي/المستقبل أو تساوي التواريخ نعرض 0 فقط بدون تفاصيل
     resultText.textContent = "0 يوم";
     resultEquivalent.textContent = "";
-    resultDetails.textContent = "التاريخ هو اليوم نفسه، الفرق 0 يوم.";
+    resultDetails.textContent = "";
   } else {
-    if (days > 0) {
-      verb = "مر";
+    // اختيار الكلمة حسب الوضع الحالي للزر
+    if (mode === "since") {
+      verb = "مضى";
       isRemaining = false;
-    } else if (days < 0) {
-      verb = "بقي";
-      isRemaining = true;
+      // تخزين هذا التاريخ كأساس لعبارة "منذ ..." لاستخدامه لاحقًا في وضع حتى التاريخ
+      lastSinceBaseGregorian = formatGregorian(target) + " م";
+      lastSinceBaseRaw = singleDateInput.value || "";
+    } else {
+      verb = "متبقي";
+      // نستخدم isFutureTarget لتحديد هل هو موعد قادم لأغراض الوميض
+      isRemaining = isFutureTarget;
     }
     resultText.innerHTML = `<span class="result-verb-red">${verb}</span> ${abs} يوم`;
     resultEquivalent.textContent = formatYearsAndDays(days);
 
-    if (days > 0) {
-      // مرّت أيام من التاريخ المحدد حتى اليوم
-      resultDetails.innerHTML = `مرّت ${abs} يوم منذ ${formatBothCalendars(target)} حتى اليوم (${formatBothCalendars(today)}).`;
+    if (mode === "since") {
+      // مضت أيام من التاريخ المحدد حتى اليوم
+      resultDetails.innerHTML = `مضت ${abs} يوم منذ ${formatBothCalendars(target)} حتى اليوم (${formatBothCalendars(today)}).`;
     } else {
       // تبقّى أيام من اليوم حتى التاريخ المحدد
-      resultDetails.innerHTML = `تبقى ${abs} يوم حتى ${formatBothCalendars(target)} من اليوم (${formatBothCalendars(today)}).`;
+      let details = `تبقى ${abs} يوم حتى ${formatBothCalendars(target)} من اليوم (${formatBothCalendars(today)}).`;
+
+      // إذا كان لدينا تاريخ أساس من آخر حساب في وضع "منذ التاريخ"، نضيف سطرًا يلخص الفترة بين التاريخين
+      const rawDateValue = singleDateInput.value || "";
+      if (lastSinceBaseRaw && rawDateValue) {
+        const base = new Date(lastSinceBaseRaw + "T00:00:00");
+        const untilDate = new Date(rawDateValue + "T00:00:00");
+        if (!isNaN(base.getTime()) && !isNaN(untilDate.getTime())) {
+          const betweenDays = diffInDays(base, untilDate);
+          const absBetween = Math.abs(betweenDays);
+          const eqBetween = formatYearsAndDays(betweenDays);
+
+          const fromText = formatGregorian(base) + " م";
+          const toText = formatGregorian(untilDate) + " م";
+
+          // إزالة عبارة "ما يعادل" من بداية النص إن وُجدت للاستخدام داخل "تعادل"
+          let eqText = "";
+          if (eqBetween) {
+            eqText = eqBetween.replace(/^ما يعادل\s*/u, "");
+          } else {
+            eqText = `${absBetween} يوم`;
+          }
+
+          details += `<br>منذ ${fromText} حتى ${toText} تعادل ${eqText}`;
+        }
+      }
+
+      resultDetails.innerHTML = details;
     }
   }
 
@@ -668,6 +689,25 @@ saveEntryBtn.addEventListener("click", () => {
   // قراءة التاريخ الخام المستخدم في الحساب الحالي لدعم إعادة الحساب لاحقًا
   const rawDateValue = singleDateInput.value || "";
 
+  // في حال كان الوضع الحالي "حتى التاريخ" وهناك تاريخ أساس من آخر حساب "منذ التاريخ"
+  // نحسب الفترة بين التاريخين لبناء جملة: منذ [من] حتى [إلى] تعادل ...
+  let sinceUntilSummary = "";
+  if (mode === "until" && lastSinceBaseRaw && rawDateValue) {
+    const base = new Date(lastSinceBaseRaw + "T00:00:00");
+    const target = new Date(rawDateValue + "T00:00:00");
+    if (!isNaN(base.getTime()) && !isNaN(target.getTime())) {
+      const daysBetween = diffInDays(base, target);
+      const absBetween = Math.abs(daysBetween);
+      const eqBetween = formatYearsAndDays(daysBetween);
+
+      const fromText = formatGregorian(base) + " م";
+      const toText = formatGregorian(target) + " م";
+      const eqText = eqBetween || `${absBetween} يوم`;
+
+      sinceUntilSummary = `منذ ${fromText} حتى ${toText} تعادل ${eqText}`;
+    }
+  }
+
   const entry = {
     id: Date.now(),
     // السطر الأول: "مر / بقي X يوم" مع اللون الأحمر
@@ -681,6 +721,7 @@ saveEntryBtn.addEventListener("click", () => {
     remainingDays: lastDaysValue,
     remainingIsFuture: lastIsRemaining,
     targetDate: lastTargetGregorian,
+    sinceUntilSummary,
     // قيم جديدة لدعم إعادة الحساب الديناميكي
     targetDateRaw: rawDateValue,
     modeAtSave: mode,

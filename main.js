@@ -561,10 +561,20 @@ function calculate() {
       // تبقّى أيام من اليوم حتى التاريخ المحدد (سطر ذهبي)
       let details = `<span class="details-gold">تبقى ${abs} يوم حتى ${formatBothCalendars(target)} من اليوم (${formatBothCalendars(today)}).</span>`;
 
-      // إذا كان لدينا تاريخ أساس من آخر حساب في وضع "منذ التاريخ"، نضيف سطرًا يلخص الفترة بين التاريخين (سطر أحمر)
+      // نضيف سطرًا يلخص الفترة بين تاريخ أساس وتاريخ "حتى" الحالي
+      // إذا وُجد lastSinceBaseRaw نستخدمه، وإلا نستخدم تاريخ اليوم كأساس
       const rawDateValue = singleDateInput.value || "";
-      if (lastSinceBaseRaw && rawDateValue) {
-        const base = new Date(lastSinceBaseRaw + "T00:00:00");
+      if (rawDateValue) {
+        let baseRawForSummary = lastSinceBaseRaw;
+
+        if (!baseRawForSummary) {
+          const yyyy = today.getFullYear();
+          const mm = String(today.getMonth() + 1).padStart(2, "0");
+          const dd = String(today.getDate()).padStart(2, "0");
+          baseRawForSummary = `${yyyy}-${mm}-${dd}`;
+        }
+
+        const base = new Date(baseRawForSummary + "T00:00:00");
         const untilDate = new Date(rawDateValue + "T00:00:00");
         if (!isNaN(base.getTime()) && !isNaN(untilDate.getTime())) {
           const betweenDays = diffInDays(base, untilDate);

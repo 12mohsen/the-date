@@ -324,14 +324,10 @@ function renderSavedEntries() {
 
     if (targetForCalc) {
       let days;
-      let isExpired = false;
-      
       if (entry.modeAtSave === "since") {
         days = diffInDays(targetForCalc, today);
       } else {
         days = diffInDays(today, targetForCalc);
-        // تحقق إذا انتهت المدة (للوضع "متبقي" فقط)
-        isExpired = days < 0;
       }
 
       const abs = Math.abs(days);
@@ -342,19 +338,13 @@ function renderSavedEntries() {
         verb = "مضى";
         blinkIsFuture = false;
       } else if (entry.modeAtSave === "until") {
-        if (isExpired) {
-          verb = "انتهت المدة المتبقية";
-        } else {
-          verb = "متبقي";
-        }
+        verb = "متبقي";
         // نعتبره موعدًا قادمًا إذا كان الهدف في المستقبل بالنسبة لليوم
         blinkIsFuture = targetForCalc > today;
       }
 
       if (abs === 0) {
         dynamicMainLine = "0 يوم";
-      } else if (verb === "انتهت المدة المتبقية") {
-        dynamicMainLine = `<span class="result-verb-red">${verb}</span>`;
       } else if (verb) {
         dynamicMainLine = `<span class="result-verb-red">${verb}</span> ${abs} يوم`;
       } else {
@@ -565,11 +555,48 @@ function calculate() {
     resultEquivalent.textContent = formatYearsAndDays(days);
 
     if (mode === "since") {
-      // منذ التاريخ المحدد حتى اليوم
-      resultDetails.innerHTML = `منذ ${formatBothCalendars(target)} حتى ${formatBothCalendars(today)}`;
+      // مضت أيام من التاريخ المحدد حتى اليوم
+      resultDetails.innerHTML = `مضت ${abs} يوم منذ ${formatBothCalendars(target)} حتى اليوم (${formatBothCalendars(today)}).`;
     } else {
-      // من اليوم حتى التاريخ المحدد
-      resultDetails.innerHTML = `منذ ${formatBothCalendars(today)} حتى ${formatBothCalendars(target)}`;
+      // تبقّى أيام من اليوم حتى التاريخ المحدد (سطر ذهبي)
+      let details = `<span class="details-gold">تبقى ${abs} يوم حتى ${formatBothCalendars(target)} من اليوم (${formatBothCalendars(today)}).</span>`;
+
+      // نضيف سطرًا يلخص الفترة بين تاريخ أساس وتاريخ "حتى" الحالي
+      // إذا وُجد lastSinceBaseRaw نستخدمه، وإلا نستخدم تاريخ اليوم كأساس
+      const rawDateValue = singleDateInput.value || "";
+      if (rawDateValue) {
+        let baseRawForSummary = lastSinceBaseRaw;
+
+        if (!baseRawForSummary) {
+          const yyyy = today.getFullYear();
+          const mm = String(today.getMonth() + 1).padStart(2, "0");
+          const dd = String(today.getDate()).padStart(2, "0");
+          baseRawForSummary = `${yyyy}-${mm}-${dd}`;
+        }
+
+        const base = new Date(baseRawForSummary + "T00:00:00");
+        const untilDate = new Date(rawDateValue + "T00:00:00");
+        if (!isNaN(base.getTime()) && !isNaN(untilDate.getTime())) {
+          const betweenDays = diffInDays(base, untilDate);
+          const absBetween = Math.abs(betweenDays);
+          const eqBetween = formatYearsAndDays(betweenDays);
+
+          const fromText = formatGregorian(base) + " م";
+          const toText = formatGregorian(untilDate) + " م";
+
+          // إزالة عبارة "ما يعادل" من بداية النص إن وُجدت، لنستخدمها داخل "تعادل" الخضراء
+          let eqText = "";
+          if (eqBetween) {
+            eqText = eqBetween.replace(/^ما يعادل\s*/u, "");
+          } else {
+            eqText = `${absBetween} يوم`;
+          }
+
+          details += `<br><span class="details-gold">منذ ${fromText} حتى ${toText}</span> <span class=\"details-equivalent\">تعادل ${eqText}</span>`;
+        }
+      }
+
+      resultDetails.innerHTML = details;
     }
   }
 
@@ -685,14 +712,9 @@ saveEntryBtn.addEventListener("click", () => {
 
       const fromText = formatGregorian(base) + " م";
       const toText = formatGregorian(target) + " م";
-      let eqText;
-      if (eqBetween) {
-        eqText = eqBetween.replace(/^ما يعادل\s*/u, '');
-      } else {
-        eqText = `${absBetween} يوم`;
-      }
+      const eqText = eqBetween || `${absBetween} يوم`;
 
-      sinceUntilSummary = `منذ ${fromText} حتى ${toText}`;
+      sinceUntilSummary = `منذ ${fromText} حتى ${toText} تعادل ${eqText}`;
     }
   }
 

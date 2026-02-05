@@ -338,20 +338,32 @@ function renderSavedEntries() {
         verb = "مضى";
         blinkIsFuture = false;
       } else if (entry.modeAtSave === "until") {
-        verb = "متبقي";
-        // نعتبره موعدًا قادمًا إذا كان الهدف في المستقبل بالنسبة لليوم
-        blinkIsFuture = targetForCalc > today;
+        // للوضع "حتى" نتحقق إذا انتهى الموعد أم لا
+        if (targetForCalc < today) {
+          dynamicMainLine = `<span class="result-verb-red" style="color: #22c55e;">✨ انتهى</span>`;
+          dynamicEquivLine = `مرّ ${abs} يوم منذ انتهاء الموعد`;
+        } else if (targetForCalc === today) {
+          dynamicMainLine = `<span class="result-verb-red" style="color: #f59e0b;">🔔 اليوم</span>`;
+          dynamicEquivLine = "ينتهي اليوم";
+        } else {
+          verb = "متبقي";
+          blinkIsFuture = targetForCalc > today;
+        }
       }
 
-      if (abs === 0) {
-        dynamicMainLine = "0 يوم";
-      } else if (verb) {
-        dynamicMainLine = `<span class="result-verb-red">${verb}</span> ${abs} يوم`;
-      } else {
-        dynamicMainLine = `${abs} يوم`;
+      if (!dynamicMainLine) {
+        if (abs === 0) {
+          dynamicMainLine = `<span class="result-verb-red">${verb}</span> اليوم`;
+        } else if (verb) {
+          dynamicMainLine = `<span class="result-verb-red">${verb}</span> ${abs} يوم`;
+        } else {
+          dynamicMainLine = `${abs} يوم`;
+        }
       }
 
-      dynamicEquivLine = formatYearsAndDays(days);
+      if (!dynamicEquivLine) {
+        dynamicEquivLine = formatYearsAndDays(days);
+      }
       blinkDays = abs;
     }
 
@@ -520,11 +532,43 @@ function calculate() {
       days = 0;
     }
   } else {
-    // حتى التاريخ: نحسب فقط إذا كان التاريخ بعد اليوم
-    if (target > today) {
-      days = diffInDays(today, target);
-    } else {
-      days = 0;
+    // حتى التاريخ: نحسب دائماً لمعرفة هل انتهى أم لا
+    days = diffInDays(today, target);
+    // إذا كان التاريخ في الماضي، نعرض رسالة انتهاء رائعة
+    if (target < today) {
+      const pastDays = Math.abs(days);
+      resultText.innerHTML = `<span class="result-verb-red" style="color: #22c55e;">✨ انتهى</span>`;
+      resultEquivalent.textContent = `مرّ ${pastDays} يوم منذ انتهاء الموعد`;
+      resultDetails.innerHTML = `<span class="details-gold">🎉 انتهى الموعد الذي كان في ${formatBothCalendars(target)} منذ ${pastDays} يوم (من اليوم ${formatBothCalendars(today)}).</span>`;
+      
+      // تخزين معلومات آخر حساب لاستخدامها عند الحفظ في الجدول
+      lastDaysValue = pastDays;
+      lastIsRemaining = false;
+      lastTargetGregorian = formatGregorian(target);
+      
+      resultCard.hidden = false;
+      if (resultPlaceholder) {
+        resultPlaceholder.hidden = true;
+      }
+      saveState();
+      return;
+    } else if (target === today) {
+      // إذا كان التاريخ هو اليوم نفسه
+      resultText.innerHTML = `<span class="result-verb-red" style="color: #f59e0b;">🔔 اليوم</span>`;
+      resultEquivalent.textContent = "ينتهي اليوم";
+      resultDetails.innerHTML = `<span class="details-gold">⏰ ينتهي الموعد اليوم: ${formatBothCalendars(target)} (اليوم ${formatBothCalendars(today)}).</span>`;
+      
+      // تخزين معلومات آخر حساب لاستخدامها عند الحفظ في الجدول
+      lastDaysValue = 0;
+      lastIsRemaining = false;
+      lastTargetGregorian = formatGregorian(target);
+      
+      resultCard.hidden = false;
+      if (resultPlaceholder) {
+        resultPlaceholder.hidden = true;
+      }
+      saveState();
+      return;
     }
   }
 
@@ -537,10 +581,19 @@ function calculate() {
   lastTargetGregorian = formatGregorian(target);
 
   if (abs === 0) {
-    // في حالة عدم تحقق شروط الماضي/المستقبل أو تساوي التواريخ نعرض 0 فقط بدون تفاصيل
-    resultText.textContent = "0 يوم";
+    // إذا كان التاريخ هو اليوم نفسه، نعرض النتيجة حسب الوضع
+    if (mode === "since") {
+      verb = "مضى";
+      isRemaining = false;
+      resultText.innerHTML = `<span class="result-verb-red">${verb}</span> اليوم`;
+      resultDetails.innerHTML = `مضى اليوم منذ ${formatBothCalendars(target)} حتى اليوم (${formatBothCalendars(today)}).`;
+    } else {
+      verb = "متبقي";
+      isRemaining = false;
+      resultText.innerHTML = `<span class="result-verb-red">${verb}</span> اليوم`;
+      resultDetails.innerHTML = `<span class="details-gold">تبقى اليوم حتى ${formatBothCalendars(target)} من اليوم (${formatBothCalendars(today)}).</span>`;
+    }
     resultEquivalent.textContent = "";
-    resultDetails.textContent = "";
   } else {
     // اختيار الكلمة حسب الوضع الحالي للزر
     if (mode === "since") {

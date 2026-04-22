@@ -13,6 +13,8 @@ const savedList = document.getElementById("saved-list");
 const savedCountEl = document.getElementById("saved-count");
 const filterButtons = document.querySelectorAll(".filter-btn");
 const themeToggleBtn = document.getElementById("theme-toggle");
+const langToggleBtn = document.getElementById("lang-toggle");
+const langToggleAuthBtn = document.getElementById("lang-toggle-auth");
 const trashBtn = document.getElementById("trash-btn");
 const trashModal = document.getElementById("trash-modal");
 const trashCloseBtn = document.getElementById("trash-close-btn");
@@ -151,34 +153,34 @@ function formatYearsAndDays(days) {
     let rest = total % 365;
 
     if (years > 0) {
-      parts.push(`${years} سنة`);
+      parts.push(`${years} ${t("yearUnit")}`);
     }
 
     const months = Math.floor(rest / 30);
     rest = rest % 30;
 
     if (months > 0) {
-      parts.push(`${months} شهر`);
+      parts.push(`${months} ${t("monthUnit")}`);
     }
 
     if (rest > 0) {
-      parts.push(`${rest} يوم`);
+      parts.push(`${rest} ${t("dayUnit")}`);
     }
   } else {
     const months = Math.floor(total / 30);
     const rest = total % 30;
 
     if (months > 0) {
-      parts.push(`${months} شهر`);
+      parts.push(`${months} ${t("monthUnit")}`);
     }
 
     if (rest > 0) {
-      parts.push(`${rest} يوم`);
+      parts.push(`${rest} ${t("dayUnit")}`);
     }
   }
 
   if (!parts.length) return "";
-  return `ما يعادل ${parts.join(" و ")}`;
+  return `${t("equivalentPrefix")} ${parts.join(` ${t("and")} `)}`;
 }
 
 function saveState(extra = {}) {
@@ -397,29 +399,28 @@ function renderSavedEntries() {
       // اختيار الكلمة حسب الوضع الذي حُفظت به المدة، وليس حسب إشارة days
       let verb = "";
       if (entry.modeAtSave === "since") {
-        verb = "مضى";
+        verb = t("verbSince");
         blinkIsFuture = false;
       } else if (entry.modeAtSave === "until") {
-        // للوضع "حتى" نتحقق إذا انتهى الموعد أم لا
         if (targetForCalc < today) {
-          dynamicMainLine = `<span class="result-verb-red" style="color: #22c55e;">✨ انتهى</span>`;
-          dynamicEquivLine = `مرّ ${abs} يوم منذ انتهاء الموعد`;
+          dynamicMainLine = `<span class="result-verb-red" style="color: #22c55e;">${t("verbEnded")}</span>`;
+          dynamicEquivLine = t("daysPassedSinceEnd", abs);
         } else if (targetForCalc === today) {
-          dynamicMainLine = `<span class="result-verb-red" style="color: #f59e0b;">🔔 اليوم</span>`;
-          dynamicEquivLine = "ينتهي اليوم";
+          dynamicMainLine = `<span class="result-verb-red" style="color: #f59e0b;">${t("verbToday")}</span>`;
+          dynamicEquivLine = t("endsToday");
         } else {
-          verb = "متبقي";
+          verb = t("verbUntil");
           blinkIsFuture = targetForCalc > today;
         }
       }
 
       if (!dynamicMainLine) {
         if (abs === 0) {
-          dynamicMainLine = `<span class="result-verb-red">${verb}</span> اليوم`;
+          dynamicMainLine = `<span class="result-verb-red">${verb}</span> ${t("todayWord")}`;
         } else if (verb) {
-          dynamicMainLine = `<span class="result-verb-red">${verb}</span> ${abs} يوم`;
+          dynamicMainLine = `<span class="result-verb-red">${verb}</span> ${abs} ${t("dayUnit")}`;
         } else {
-          dynamicMainLine = `${abs} يوم`;
+          dynamicMainLine = `${abs} ${t("dayUnit")}`;
         }
       }
 
@@ -478,7 +479,7 @@ function renderSavedEntries() {
     const remainingLine = document.createElement("div");
     remainingLine.className = "saved-item-remaining";
     if (entry.hidden) {
-      remainingLine.textContent = "مخفي";
+      remainingLine.textContent = t("hiddenLabel");
     } else {
       const parts = [];
       if (dynamicMainLine) parts.push(dynamicMainLine);
@@ -499,7 +500,7 @@ function renderSavedEntries() {
     right.className = "saved-item-actions";
     const toggleBtn = document.createElement("button");
     toggleBtn.className = "toggle-btn";
-    toggleBtn.textContent = entry.hidden ? "إظهار" : "إخفاء";
+    toggleBtn.textContent = entry.hidden ? t("showBtn") : t("hideBtn");
     toggleBtn.addEventListener("click", () => {
       entry.hidden = !entry.hidden;
       saveSavedEntries();
@@ -511,9 +512,9 @@ function renderSavedEntries() {
 
     const deleteBtn = document.createElement("button");
     deleteBtn.className = "toggle-btn";
-    deleteBtn.textContent = "حذف";
+    deleteBtn.textContent = t("deleteBtn");
     deleteBtn.addEventListener("click", () => {
-      const ok = confirm("هل أنت متأكد من حذف هذه المدة المحفوظة؟ لا يمكن التراجع عن هذا الإجراء.");
+      const ok = confirm(t("deleteConfirm"));
       if (!ok) return;
 
       savedEntries = savedEntries.filter((e) => e.id !== entry.id);
@@ -566,8 +567,8 @@ function renderSavedEntries() {
   if (savedCountEl) {
     const count = savedEntries.length;
     savedCountEl.textContent = count
-      ? `عدد المدد المحفوظة: ${count}`
-      : "لا توجد مدد محفوظة";
+      ? t("savedCount", count)
+      : t("noSaved");
   }
 }
 
@@ -603,9 +604,9 @@ function calculate() {
     // إذا كان التاريخ في الماضي، نعرض رسالة انتهاء رائعة
     if (target < today) {
       const pastDays = Math.abs(days);
-      resultText.innerHTML = `<span class="result-verb-red" style="color: #22c55e;">✨ انتهى</span>`;
-      resultEquivalent.textContent = `مرّ ${pastDays} يوم منذ انتهاء الموعد`;
-      resultDetails.innerHTML = `<span class="details-gold">🎉 انتهى الموعد الذي كان في ${formatBothCalendars(target)} منذ ${pastDays} يوم (من اليوم ${formatBothCalendars(today)}).</span>`;
+      resultText.innerHTML = `<span class="result-verb-red" style="color: #22c55e;">${t("verbEnded")}</span>`;
+      resultEquivalent.textContent = t("daysPassedSinceEnd", pastDays);
+      resultDetails.innerHTML = `<span class="details-gold">${t("joinEnded", pastDays, formatBothCalendars(target), formatBothCalendars(today))}</span>`;
       
       // تخزين معلومات آخر حساب لاستخدامها عند الحفظ في الجدول
       lastDaysValue = pastDays;
@@ -619,10 +620,9 @@ function calculate() {
       saveState();
       return;
     } else if (target === today) {
-      // إذا كان التاريخ هو اليوم نفسه
-      resultText.innerHTML = `<span class="result-verb-red" style="color: #f59e0b;">🔔 اليوم</span>`;
-      resultEquivalent.textContent = "ينتهي اليوم";
-      resultDetails.innerHTML = `<span class="details-gold">⏰ ينتهي الموعد اليوم: ${formatBothCalendars(target)} (اليوم ${formatBothCalendars(today)}).</span>`;
+      resultText.innerHTML = `<span class="result-verb-red" style="color: #f59e0b;">${t("verbToday")}</span>`;
+      resultEquivalent.textContent = t("endsToday");
+      resultDetails.innerHTML = `<span class="details-gold">${t("joinEndsToday", formatBothCalendars(target), formatBothCalendars(today))}</span>`;
       
       // تخزين معلومات آخر حساب لاستخدامها عند الحفظ في الجدول
       lastDaysValue = 0;
@@ -649,36 +649,33 @@ function calculate() {
   if (abs === 0) {
     // إذا كان التاريخ هو اليوم نفسه، نعرض النتيجة حسب الوضع
     if (mode === "since") {
-      verb = "مضى";
+      verb = t("verbSince");
       isRemaining = false;
-      resultText.innerHTML = `<span class="result-verb-red">${verb}</span> اليوم`;
-      resultDetails.innerHTML = `مضى اليوم منذ ${formatBothCalendars(target)} حتى اليوم (${formatBothCalendars(today)}).`;
+      resultText.innerHTML = `<span class="result-verb-red">${verb}</span> ${t("todayWord")}`;
+      resultDetails.innerHTML = t("joinSincePast", 0, formatBothCalendars(target), formatBothCalendars(today));
     } else {
-      verb = "متبقي";
+      verb = t("verbUntil");
       isRemaining = false;
-      resultText.innerHTML = `<span class="result-verb-red">${verb}</span> اليوم`;
-      resultDetails.innerHTML = `<span class="details-gold">تبقى اليوم حتى ${formatBothCalendars(target)} من اليوم (${formatBothCalendars(today)}).</span>`;
+      resultText.innerHTML = `<span class="result-verb-red">${verb}</span> ${t("todayWord")}`;
+      resultDetails.innerHTML = `<span class="details-gold">${t("joinRemaining", 0, formatBothCalendars(target), formatBothCalendars(today))}</span>`;
     }
     resultEquivalent.textContent = "";
   } else {
     // اختيار الكلمة حسب الوضع الحالي للزر
     if (mode === "since") {
-      verb = "مضى";
+      verb = t("verbSince");
       isRemaining = false;
     } else {
-      verb = "متبقي";
-      // نستخدم isFutureTarget لتحديد هل هو موعد قادم لأغراض الوميض
+      verb = t("verbUntil");
       isRemaining = isFutureTarget;
     }
-    resultText.innerHTML = `<span class="result-verb-red">${verb}</span> ${abs} يوم`;
+    resultText.innerHTML = `<span class="result-verb-red">${verb}</span> ${abs} ${t("dayUnit")}`;
     resultEquivalent.textContent = formatYearsAndDays(days);
 
     if (mode === "since") {
-      // مضت أيام من التاريخ المحدد حتى اليوم
-      resultDetails.innerHTML = `مضت ${abs} يوم منذ ${formatBothCalendars(target)} حتى اليوم (${formatBothCalendars(today)}).`;
+      resultDetails.innerHTML = t("joinSincePast", abs, formatBothCalendars(target), formatBothCalendars(today));
     } else {
-      // تبقّى أيام من اليوم حتى التاريخ المحدد (سطر ذهبي)
-      let details = `<span class="details-gold">تبقى ${abs} يوم حتى ${formatBothCalendars(target)} من اليوم (${formatBothCalendars(today)}).</span>`;
+      let details = `<span class="details-gold">${t("joinRemaining", abs, formatBothCalendars(target), formatBothCalendars(today))}</span>`;
 
       // نضيف سطرًا يلخص الفترة بين تاريخ أساس وتاريخ "حتى" الحالي
       // إذا وُجد lastSinceBaseRaw نستخدمه، وإلا نستخدم تاريخ اليوم كأساس
@@ -745,19 +742,19 @@ function showMainApp() {
 function setAuthMode(newMode) {
   authMode = newMode;
   if (newMode === "login") {
-    authTitle.textContent = "تسجيل الدخول";
-    authSubtitle.textContent = "أدخل اسم المستخدم وكلمة المرور للمتابعة";
-    authSubmitBtn.textContent = "دخول";
+    authTitle.textContent = t("authTitleLogin");
+    authSubtitle.textContent = t("authSubtitleLogin");
+    authSubmitBtn.textContent = t("loginBtn");
     authHintField.hidden = true;
-    authToggleText.textContent = "ليس لديك حساب؟";
-    authToggleBtn.textContent = "إنشاء حساب جديد";
+    authToggleText.textContent = t("noAccount");
+    authToggleBtn.textContent = t("goToSignup");
   } else {
-    authTitle.textContent = "إنشاء حساب جديد";
-    authSubtitle.textContent = "أنشئ حساباً جديداً مع تلميح لكلمة المرور";
-    authSubmitBtn.textContent = "إنشاء الحساب";
+    authTitle.textContent = t("authTitleSignup");
+    authSubtitle.textContent = t("authSubtitleSignup");
+    authSubmitBtn.textContent = t("signupBtn");
     authHintField.hidden = false;
-    authToggleText.textContent = "لديك حساب بالفعل؟";
-    authToggleBtn.textContent = "تسجيل الدخول";
+    authToggleText.textContent = t("haveAccount");
+    authToggleBtn.textContent = t("goToLogin");
   }
   clearAuthMessages();
 }
@@ -819,12 +816,12 @@ async function handleAuthSubmit(e) {
   const password = authPassword.value || "";
 
   if (!username || !password) {
-    showAuthError("الرجاء إدخال اسم المستخدم وكلمة المرور.");
+    showAuthError(t("errEnterBoth"));
     return;
   }
 
   authSubmitBtn.disabled = true;
-  authSubmitBtn.textContent = "جارٍ المعالجة...";
+  authSubmitBtn.textContent = t("processingBtn");
 
   try {
     if (authMode === "login") {
@@ -832,9 +829,9 @@ async function handleAuthSubmit(e) {
       if (res.ok) {
         await startAppForUser(username);
       } else if (!res.exists) {
-        showAuthError("هذا المستخدم غير موجود. يمكنك إنشاء حساب جديد.");
+        showAuthError(t("errUserNotFound"));
       } else {
-        showAuthError("كلمة المرور غير صحيحة.");
+        showAuthError(t("errWrongPassword"));
         authRemindBtn.hidden = false;
         authRemindBtn.dataset.hint = res.hint || "";
       }
@@ -842,39 +839,39 @@ async function handleAuthSubmit(e) {
       // signup
       const hintVal = (authHint.value || "").trim();
       if (!hintVal) {
-        showAuthError("الرجاء إضافة تلميح لكلمة المرور.");
+        showAuthError(t("errNeedHint"));
         return;
       }
       const existing = await dbGetUser(username);
       if (existing) {
-        showAuthError("اسم المستخدم مستخدم مسبقاً. اختر اسماً آخر.");
+        showAuthError(t("errUsernameTaken"));
         return;
       }
       const res = await dbSignup(username, password, hintVal);
       if (res.ok) {
         await startAppForUser(username);
       } else {
-        showAuthError("حدث خطأ أثناء إنشاء الحساب: " + (res.error || ""));
+        showAuthError(t("errSignupFailed") + (res.error || ""));
       }
     }
   } finally {
     authSubmitBtn.disabled = false;
-    authSubmitBtn.textContent = authMode === "login" ? "دخول" : "إنشاء الحساب";
+    authSubmitBtn.textContent = authMode === "login" ? t("loginBtn") : t("signupBtn");
   }
 }
 
 function handleRemindClick() {
   const hint = authRemindBtn.dataset.hint || "";
   if (hint) {
-    authHintDisplay.textContent = "💡 التلميح: " + hint;
+    authHintDisplay.textContent = t("hintPrefix") + hint;
   } else {
-    authHintDisplay.textContent = "لم يتم تسجيل تلميح لهذا الحساب.";
+    authHintDisplay.textContent = t("noHintSet");
   }
   authHintDisplay.hidden = false;
 }
 
 function handleLogout() {
-  const ok = confirm("هل تريد تسجيل الخروج؟");
+  const ok = confirm(t("logoutConfirm"));
   if (!ok) return;
 
   setCurrentUsername(null);
@@ -896,7 +893,25 @@ if (authToggleBtn) authToggleBtn.addEventListener("click", () => {
 if (authRemindBtn) authRemindBtn.addEventListener("click", handleRemindClick);
 if (logoutBtn) logoutBtn.addEventListener("click", handleLogout);
 
+// ============ ربط زر تبديل اللغة ============
+function onLanguageChanged() {
+  // بعد تغيير اللغة: أعد رسم القوائم والنصوص الديناميكية
+  if (authScreen && !authScreen.hidden) {
+    setAuthMode(authMode);
+  }
+  renderSavedEntries();
+  // إذا كانت النتيجة مرئية، أعد الحساب لتحديث نصوصها
+  if (resultCard && !resultCard.hidden && singleDateInput && singleDateInput.value) {
+    try { calculate(); } catch (e) {}
+  }
+}
+
+if (langToggleBtn) langToggleBtn.addEventListener("click", toggleLanguage);
+if (langToggleAuthBtn) langToggleAuthBtn.addEventListener("click", toggleLanguage);
+
 // ============ بدء التشغيل ============
+loadLanguage();
+applyLanguageToDOM();
 loadTheme();
 
 // استعلام keep-alive فور فتح الصفحة (بدون انتظار - لا يعطّل الواجهة)
@@ -982,7 +997,7 @@ if (filterButtons && filterButtons.length) {
 
 async function openTrashModal() {
   if (!trashModal || !trashList) return;
-  trashList.innerHTML = '<p class="trash-empty">جارٍ التحميل...</p>';
+  trashList.innerHTML = `<p class="trash-empty">${t("trashLoading")}</p>`;
   trashModal.hidden = false;
 
   const deleted = await dbFetchDeletedEntries();
@@ -994,7 +1009,7 @@ function renderTrashList(deleted) {
   trashList.innerHTML = "";
 
   if (!deleted || deleted.length === 0) {
-    trashList.innerHTML = '<p class="trash-empty">سلة المحذوفات فارغة</p>';
+    trashList.innerHTML = `<p class="trash-empty">${t("trashEmpty")}</p>`;
     return;
   }
 
@@ -1007,14 +1022,14 @@ function renderTrashList(deleted) {
 
     const title = document.createElement("div");
     title.className = "trash-item-title";
-    title.textContent = entry.note || "(بدون اسم)";
+    title.textContent = entry.note || t("trashNoName");
 
     const meta = document.createElement("div");
     meta.className = "trash-item-meta";
 
     let metaText = "";
     if (entry.targetDateRaw) {
-      metaText += `التاريخ: ${entry.targetDateRaw}`;
+      metaText += t("trashDatePrefix") + entry.targetDateRaw;
     }
     if (entry.deletedAt) {
       const d = new Date(entry.deletedAt);
@@ -1023,8 +1038,8 @@ function renderTrashList(deleted) {
       const dayMs = 24 * 60 * 60 * 1000;
       const remainingDays = Math.max(0, Math.floor(remainingMs / dayMs));
       const remainingHours = Math.max(0, Math.floor((remainingMs % dayMs) / (60 * 60 * 1000)));
-      if (metaText) metaText += " — ";
-      metaText += `يُحذف نهائياً خلال: ${remainingDays} يوم و ${remainingHours} ساعة`;
+      if (metaText) metaText += t("trashSeparator");
+      metaText += t("trashPermDelete", remainingDays, remainingHours);
     }
     meta.textContent = metaText;
 
@@ -1033,10 +1048,10 @@ function renderTrashList(deleted) {
 
     const restoreBtn = document.createElement("button");
     restoreBtn.className = "trash-restore-btn";
-    restoreBtn.textContent = "↺ استعادة";
+    restoreBtn.textContent = t("trashRestoreBtn");
     restoreBtn.addEventListener("click", async () => {
       restoreBtn.disabled = true;
-      restoreBtn.textContent = "جارٍ الاستعادة...";
+      restoreBtn.textContent = t("trashRestoring");
       await dbRestoreEntry(entry.id);
       // أعد جلب القوائم
       await loadSavedEntriesFromCloud();
@@ -1068,21 +1083,21 @@ if (trashModal) {
 
 saveEntryBtn.addEventListener("click", () => {
   if (resultCard.hidden) {
-    alert("قم بحساب المدة أولاً قبل الحفظ في الجدول.");
+    alert(t("calcFirst"));
     return;
   }
 
   const daysHtml = resultText.innerHTML || "";
   const importance = importanceSelect.value;
 
-  const noteRaw = prompt("اكتب الملاحظة للمدة الحالية:", "");
+  const noteRaw = prompt(t("notePrompt"), "");
   if (noteRaw === null) {
     return;
   }
 
   const note = noteRaw.trim();
   if (!note) {
-    alert("الرجاء كتابة ملاحظة قبل الحفظ.");
+    alert(t("notePrompt"));
     return;
   }
 

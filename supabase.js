@@ -3,6 +3,28 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+// معرّف تطبيق المصدر — يُرسَل مع كل مستخدم جديد لتمييز مصدره
+const APP_ORIGIN = "days_counter";
+
+// ============ Keep-Alive Ping ============
+// استعلام بسيط يُنفَّذ عند فتح الصفحة لإبقاء مشروع Supabase نشطاً
+// (مفيد عند استخدام خدمة cron-job يومية لزيارة الصفحة)
+async function dbKeepAlivePing() {
+  try {
+    const { error } = await supabaseClient
+      .from("days_counter")
+      .select("entry_id", { head: true, count: "exact" })
+      .limit(1);
+    if (error) {
+      console.warn("Keep-alive ping error:", error.message);
+    } else {
+      console.log("[KeepAlive] Supabase ping OK @", new Date().toISOString());
+    }
+  } catch (e) {
+    console.warn("Keep-alive ping exception:", e);
+  }
+}
+
 // ============ نظام المستخدمين ============
 
 // المستخدم الحالي (يُضبط من main.js بعد تسجيل الدخول)
@@ -45,7 +67,12 @@ async function dbSignup(username, password, hint) {
   const passwordHash = await hashPassword(password);
   const { error } = await supabaseClient
     .from("users")
-    .insert([{ username, password_hash: passwordHash, hint: hint || "" }]);
+    .insert([{
+      username,
+      password_hash: passwordHash,
+      hint: hint || "",
+      app_origin: APP_ORIGIN,
+    }]);
 
   if (error) {
     console.error("Supabase signup error:", error.message);

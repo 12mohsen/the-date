@@ -899,6 +899,10 @@ if (logoutBtn) logoutBtn.addEventListener("click", handleLogout);
 // ============ بدء التشغيل ============
 loadTheme();
 
+// استعلام keep-alive فور فتح الصفحة (بدون انتظار - لا يعطّل الواجهة)
+// يُبقي مشروع Supabase نشطاً عند زيارة cron-job اليومية
+dbKeepAlivePing();
+
 (async function initApp() {
   const savedUsername = readSession();
   if (savedUsername) {

@@ -310,6 +310,44 @@ function renderSavedEntries() {
   visibleEntries.forEach((entry, index) => {
     const item = document.createElement("div");
     item.className = "saved-item";
+    item.draggable = true;
+    item.dataset.entryId = String(entry.id);
+
+    // أحداث السحب والإفلات
+    item.addEventListener("dragstart", (e) => {
+      item.classList.add("dragging");
+      e.dataTransfer.effectAllowed = "move";
+      e.dataTransfer.setData("text/plain", String(entry.id));
+    });
+    item.addEventListener("dragend", () => {
+      item.classList.remove("dragging");
+      document.querySelectorAll(".saved-item.drag-over")
+        .forEach((el) => el.classList.remove("drag-over"));
+    });
+    item.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+      item.classList.add("drag-over");
+    });
+    item.addEventListener("dragleave", () => {
+      item.classList.remove("drag-over");
+    });
+    item.addEventListener("drop", (e) => {
+      e.preventDefault();
+      item.classList.remove("drag-over");
+      const draggedId = e.dataTransfer.getData("text/plain");
+      if (!draggedId || draggedId === String(entry.id)) return;
+
+      const fromIdx = savedEntries.findIndex((x) => String(x.id) === draggedId);
+      const toIdx   = savedEntries.findIndex((x) => String(x.id) === String(entry.id));
+      if (fromIdx === -1 || toIdx === -1) return;
+
+      const [moved] = savedEntries.splice(fromIdx, 1);
+      savedEntries.splice(toIdx, 0, moved);
+      saveSavedEntries();
+      renderSavedEntries();
+      dbUpdateOrder(savedEntries);
+    });
 
     // تلوين الحد الجانبي حسب الأهمية
     if (entry.importance === "very-important") {

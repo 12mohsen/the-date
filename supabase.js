@@ -98,6 +98,25 @@ async function dbLogin(username, password) {
 
 async function dbSaveEntry(entry) {
   if (!currentUsername) return;
+
+  // تحديد sort_order: نجلب أكبر قيمة حالية للمستخدم ثم نضيف 1 ليكون الجديد في الآخر
+  let nextOrder = 0;
+  if (typeof entry.sortOrder === "number") {
+    nextOrder = entry.sortOrder;
+  } else {
+    const { data: maxRow } = await supabaseClient
+      .from("days_counter")
+      .select("sort_order")
+      .eq("user_name", currentUsername)
+      .is("deleted_at", null)
+      .order("sort_order", { ascending: false, nullsFirst: false })
+      .limit(1);
+    const currentMax = (maxRow && maxRow[0] && typeof maxRow[0].sort_order === "number")
+      ? maxRow[0].sort_order : -1;
+    nextOrder = currentMax + 1;
+    entry.sortOrder = nextOrder;
+  }
+
   const { error } = await supabaseClient
     .from("days_counter")
     .insert([{
@@ -113,6 +132,7 @@ async function dbSaveEntry(entry) {
       main_text:       entry.mainText || "",
       equivalent_text: entry.equivalentText || "",
       details_text:    entry.detailsText || "",
+      sort_order:      nextOrder,
     }]);
 
   if (error) {
@@ -226,6 +246,7 @@ async function dbFetchEntries() {
     .select("*")
     .eq("user_name", currentUsername)
     .is("deleted_at", null)
+    .order("sort_order", { ascending: true, nullsFirst: false })
     .order("created_at", { ascending: true });
 
   if (error) {
@@ -243,6 +264,7 @@ async function dbFetchEntries() {
     mainText:        row.main_text || "",
     equivalentText:  row.equivalent_text || "",
     detailsText:     row.details_text || "",
+    sortOrder:       (typeof row.sort_order === "number") ? row.sort_order : null,
     remainingDays:   null,
     remainingIsFuture: false,
     targetDate:      "",
@@ -251,11 +273,19 @@ async function dbFetchEntries() {
 
 async function dbUpdateOrder(entries) {
   if (!currentUsername) return;
-  for (let i = 0; i < entries.length; i++) {
-    await supabaseClient
+  // تحديث كل العناصر بالتوازي لسرعة أكبر
+  const updates = entries.map((entry, i) => {
+    entry.sortOrder = i;
+    return supabaseClient
       .from("days_counter")
       .update({ sort_order: i })
       .eq("entry_id", String(entries[i].id))
       .eq("user_name", currentUsername);
-  }
+  });
+  const results = await Promise.all(updates);
+  results.forEach((res, i) => {
+    if (res.error) {
+      console.error(`Supabase sort_order update error for entry ${entries[i].id}:`, res.error.message);
+    }
+  });
 }

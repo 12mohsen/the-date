@@ -101,7 +101,8 @@ function diffInDays(date1, date2) {
 }
 
 function formatGregorian(date) {
-  const fmt = new Intl.DateTimeFormat("ar-EG", {
+  const locale = (typeof getLanguage === "function" && getLanguage() === "en") ? "en-GB" : "ar-EG";
+  const fmt = new Intl.DateTimeFormat(locale, {
     day: "numeric",
     month: "numeric",
     year: "numeric",
@@ -134,12 +135,12 @@ function formatHijri(date) {
 function formatBothCalendars(date) {
   const g = formatGregorian(date);
   const h = formatHijri(date);
-  // نستخدم span لتمييز التاريخ الميلادي والهجري في التصميم
+  const isEn = (typeof getLanguage === "function" && getLanguage() === "en");
+  const gSuffix = isEn ? "" : " م";
   if (g === h) {
     return `<span class="date-greg">${g}</span>`;
   }
-  // التنسيق الهجري القادم من Intl يتضمن "هـ" بالفعل، لذلك لا نضيفها يدويًا حتى لا تتكرر
-  return `<span class="date-greg">${g} م</span> <span class="date-hijri">(${h})</span>`;
+  return `<span class="date-greg">${g}${gSuffix}</span> <span class="date-hijri">(${h})</span>`;
 }
 
 function formatYearsAndDays(days) {
@@ -322,6 +323,7 @@ function renderSavedEntries() {
     // إعادة حساب المدة ديناميكيًا (مر/بقي وعدد الأيام) إن توفّر تاريخ هدف خام
     let dynamicMainLine = "";
     let dynamicEquivLine = "";
+    let dynamicDetailsLine = "";
     let blinkDays = null;
     let blinkIsFuture = false;
 
@@ -428,6 +430,21 @@ function renderSavedEntries() {
         dynamicEquivLine = formatYearsAndDays(days);
       }
       blinkDays = abs;
+
+      // توليد سطر التفاصيل ديناميكياً باللغة الحالية
+      const tgtFmt = formatBothCalendars(targetForCalc);
+      const todayFmt = formatBothCalendars(today);
+      if (entry.modeAtSave === "since") {
+        dynamicDetailsLine = t("joinSincePast", abs, tgtFmt, todayFmt);
+      } else if (entry.modeAtSave === "until") {
+        if (targetForCalc < today) {
+          dynamicDetailsLine = `<span class="details-gold">${t("joinEnded", abs, tgtFmt, todayFmt)}</span>`;
+        } else if (targetForCalc.getTime() === today.getTime()) {
+          dynamicDetailsLine = `<span class="details-gold">${t("joinEndsToday", tgtFmt, todayFmt)}</span>`;
+        } else {
+          dynamicDetailsLine = `<span class="details-gold">${t("joinRemaining", abs, tgtFmt, todayFmt)}</span>`;
+        }
+      }
     }
 
     // إذا تعذر الحساب الديناميكي نستخدم القيم المخزنة القديمة
@@ -485,8 +502,11 @@ function renderSavedEntries() {
       if (dynamicMainLine) parts.push(dynamicMainLine);
       if (dynamicEquivLine) parts.push(dynamicEquivLine);
 
-      // إضافة نص التفاصيل الكامل كما ظهر في البطاقة (يشمل جملة تبقى/مرت وسطر منذ ...)
-      if (entry.detailsText) {
+      // سطر التفاصيل: نُفضّل النسخة الديناميكية (تُترجم مع اللغة الحالية)
+      // ونعود إلى المخزّن فقط إن لم ننجح في حسابه
+      if (dynamicDetailsLine) {
+        parts.push(dynamicDetailsLine);
+      } else if (entry.detailsText) {
         parts.push(entry.detailsText);
       }
 

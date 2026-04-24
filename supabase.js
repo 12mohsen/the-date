@@ -71,7 +71,6 @@ async function dbSignup(username, password, hint) {
       username,
       password_hash: passwordHash,
       hint: hint || "",
-      app_origin: APP_ORIGIN,
     }]);
 
   if (error) {

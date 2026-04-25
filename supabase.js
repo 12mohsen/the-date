@@ -6,6 +6,17 @@ const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // معرّف تطبيق المصدر — يُرسَل مع كل مستخدم جديد لتمييز مصدره
 const APP_ORIGIN = "days_counter";
 
+// توليد اقتراحات أسماء بديلة قريبة
+function generateUsernameSuggestions(base) {
+  const year = new Date().getFullYear();
+  const suffixes = [
+    String(Math.floor(Math.random() * 900) + 100), // 3 أرقام عشوائية
+    String(year), // السنة الحالية
+    "_" + year.slice(-2), // آخر رقمين من السنة
+  ];
+  return suffixes.map(s => base + s).slice(0, 3);
+}
+
 // ============ Keep-Alive Ping ============
 // استعلام بسيط يُنفَّذ عند فتح الصفحة لإبقاء مشروع Supabase نشطاً
 // (مفيد عند استخدام خدمة cron-job يومية لزيارة الصفحة)
@@ -47,13 +58,18 @@ async function hashPassword(password) {
   return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-// جلب مستخدم من القاعدة
-async function dbGetUser(username) {
-  const { data, error } = await supabaseClient
+// جلب مستخدم من القاعدة (مع التحقق من app_origin)
+async function dbGetUser(username, checkAppOrigin = false) {
+  let query = supabaseClient
     .from("users")
     .select("*")
-    .eq("username", username)
-    .maybeSingle();
+    .eq("username", username);
+
+  if (checkAppOrigin) {
+    query = query.eq("app_origin", APP_ORIGIN);
+  }
+
+  const { data, error } = await query.maybeSingle();
 
   if (error) {
     console.error("Supabase get user error:", error.message);
@@ -64,6 +80,17 @@ async function dbGetUser(username) {
 
 // إنشاء مستخدم جديد
 async function dbSignup(username, password, hint) {
+  // التحقق من وجود الاسم في نفس التطبيق
+  const existing = await dbGetUser(username, true);
+  if (existing) {
+    const suggestions = generateUsernameSuggestions(username);
+    return { 
+      ok: false, 
+      error: t("errUsernameTakenInApp"),
+      suggestions 
+    };
+  }
+
   const passwordHash = await hashPassword(password);
   const { error } = await supabaseClient
     .from("users")
@@ -71,6 +98,7 @@ async function dbSignup(username, password, hint) {
       username,
       password_hash: passwordHash,
       hint: hint || "",
+      app_origin: APP_ORIGIN,
     }]);
 
   if (error) {

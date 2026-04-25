@@ -909,7 +909,11 @@ async function handleAuthSubmit(e) {
       if (res.ok) {
         await startAppForUser(username);
       } else {
-        showAuthError(t("errSignupFailed") + (res.error || ""));
+        let msg = res.error || "";
+        if (res.suggestions && Array.isArray(res.suggestions) && res.suggestions.length > 0) {
+          msg += ": " + res.suggestions.join(", ");
+        }
+        showAuthError(msg);
       }
     }
   } finally {

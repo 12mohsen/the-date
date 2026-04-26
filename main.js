@@ -26,6 +26,7 @@ const STORAGE_KEY = "dayCounterState";
 const STORAGE_SAVED_KEY = "dayCounterSaved";
 const STORAGE_THEME_KEY = "dayCounterTheme";
 const STORAGE_USER_KEY = "dayCounterUser";
+const STORAGE_REMEMBER_KEY = "dayCounterRemember";
 
 // عناصر المصادقة
 const authScreen     = document.getElementById("auth-screen");
@@ -43,6 +44,7 @@ const authHintDisplay= document.getElementById("auth-hint-display");
 const authError      = document.getElementById("auth-error");
 const authToggleText    = document.getElementById("auth-toggle-text");
 const authToggleBtn     = document.getElementById("auth-toggle-btn");
+const authRememberCb    = document.getElementById("auth-remember-cb");
 const authLoginFields   = document.getElementById("auth-login-fields");
 const forgotLinkWrapper = document.getElementById("forgot-link-wrapper");
 const forgotLinkBtn     = document.getElementById("forgot-link-btn");
@@ -847,6 +849,7 @@ function setAuthMode(newMode) {
     if (authToggleText)    authToggleText.textContent = t("haveAccount");
     if (authToggleBtn)     authToggleBtn.textContent  = t("goToLogin");
     if (forgotLinkWrapper) forgotLinkWrapper.hidden   = true;
+    if (authRememberCb)    authRememberCb.checked     = true;
   } else {
     // forgot
     if (authTitle)      authTitle.textContent    = t("forgotTitle");
@@ -858,6 +861,27 @@ function setAuthMode(newMode) {
     if (forgotUsername && authUsername) forgotUsername.value = authUsername.value || "";
   }
   clearAuthMessages();
+}
+
+function saveRememberedCredentials(username, password) {
+  try { localStorage.setItem(STORAGE_REMEMBER_KEY, JSON.stringify({ username, password })); } catch (e) {}
+}
+
+function clearRememberedCredentials() {
+  localStorage.removeItem(STORAGE_REMEMBER_KEY);
+}
+
+function loadRememberedCredentials() {
+  try {
+    const raw = localStorage.getItem(STORAGE_REMEMBER_KEY);
+    if (!raw) return;
+    const data = JSON.parse(raw);
+    if (data && data.username) {
+      if (authUsername)   authUsername.value   = data.username;
+      if (authPassword)   authPassword.value   = data.password || "";
+      if (authRememberCb) authRememberCb.checked = true;
+    }
+  } catch (e) {}
 }
 
 function clearAuthMessages() {
@@ -1046,6 +1070,11 @@ async function handleAuthSubmit(e) {
     if (authMode === "login") {
       const res = await dbLogin(username, password);
       if (res.ok) {
+        if (authRememberCb && authRememberCb.checked) {
+          saveRememberedCredentials(username, password);
+        } else {
+          clearRememberedCredentials();
+        }
         await startAppForUser(username);
       } else if (!res.exists) {
         showAuthError(t("errUserNotFound"));
@@ -1068,6 +1097,7 @@ async function handleAuthSubmit(e) {
       }
       const res = await dbSignup(username, password, hintVal);
       if (res.ok) {
+        saveRememberedCredentials(username, password);
         await startAppForUser(username);
       } else {
         let msg = res.error || "";
@@ -1110,6 +1140,11 @@ function handleLogout() {
 
 // ربط أحداث المصادقة
 if (authForm) authForm.addEventListener("submit", handleAuthSubmit);
+if (authRememberCb) {
+  authRememberCb.addEventListener("change", () => {
+    if (!authRememberCb.checked) clearRememberedCredentials();
+  });
+}
 if (authToggleBtn) authToggleBtn.addEventListener("click", () => {
   setAuthMode(authMode === "login" ? "signup" : "login");
 });
@@ -1196,6 +1231,7 @@ dbKeepAlivePing();
   }
   // لا توجد جلسة → اعرض شاشة تسجيل الدخول
   setAuthMode("login");
+  loadRememberedCredentials();
   showAuthScreen();
 })();
 

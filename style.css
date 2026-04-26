@@ -810,8 +810,32 @@ body.light-theme .trash-item-title {
   border-color: #f59e0b;
 }
 
+.remember-me-row {
+  display: flex;
+  align-items: center;
+  margin: 10px 0 2px;
+}
+
+.remember-me-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  color: #94a3b8;
+  font-size: 0.85rem;
+  user-select: none;
+}
+
+#auth-remember-cb {
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+  accent-color: #f59e0b;
+  flex-shrink: 0;
+}
+
 .auth-submit-btn {
-  margin-top: 18px;
+  margin-top: 14px;
   background: #f59e0b;
   color: #0f172a;
   border: none;

@@ -19,29 +19,57 @@
       <p id="auth-subtitle" class="auth-subtitle" data-i18n="authSubtitleLogin">أدخل اسم المستخدم وكلمة المرور للمتابعة</p>
 
       <form id="auth-form" class="auth-form">
-        <label for="auth-username" data-i18n="usernameLabel">اسم المستخدم</label>
-        <input type="text" id="auth-username" autocomplete="username" required />
-
-        <label for="auth-password" data-i18n="passwordLabel">كلمة المرور</label>
-        <input type="password" id="auth-password" autocomplete="current-password" required />
-
-        <div id="auth-hint-field" class="auth-hint-field" hidden>
-          <label for="auth-hint" data-i18n="hintLabel">تلميح لكلمة المرور (يُعرض عند النسيان)</label>
-          <input type="text" id="auth-hint" />
-        </div>
-
-        <button type="submit" id="auth-submit-btn" class="auth-submit-btn" data-i18n="loginBtn">دخول</button>
-
-        <button type="button" id="auth-remind-btn" class="auth-remind-btn" hidden data-i18n="remindBtn">
-          🔑 تذكير: اعرض التلميح
-        </button>
-
-        <p id="auth-hint-display" class="auth-hint-display" hidden></p>
+        <!-- رسائل الخطأ والنجاح (مشتركة بين جميع الأوضاع) -->
         <p id="auth-error" class="auth-error" hidden></p>
 
-        <div class="auth-toggle">
-          <span id="auth-toggle-text" data-i18n="noAccount">ليس لديك حساب؟</span>
-          <button type="button" id="auth-toggle-btn" class="auth-toggle-btn" data-i18n="goToSignup">إنشاء حساب جديد</button>
+        <!-- ===== حقول تسجيل الدخول / إنشاء الحساب ===== -->
+        <div id="auth-login-fields">
+          <label for="auth-username" data-i18n="usernameLabel">اسم المستخدم</label>
+          <input type="text" id="auth-username" autocomplete="username" required />
+
+          <label for="auth-password" data-i18n="passwordLabel">كلمة المرور</label>
+          <input type="password" id="auth-password" autocomplete="current-password" required />
+
+          <div id="auth-hint-field" class="auth-hint-field" hidden>
+            <label for="auth-hint" data-i18n="hintLabel">تلميح لكلمة المرور (يُعرض عند النسيان)</label>
+            <input type="text" id="auth-hint" />
+          </div>
+
+          <button type="submit" id="auth-submit-btn" class="auth-submit-btn" data-i18n="loginBtn">دخول</button>
+
+          <button type="button" id="auth-remind-btn" class="auth-remind-btn" hidden data-i18n="remindBtn">
+            🔑 تذكير: اعرض التلميح
+          </button>
+
+          <p id="auth-hint-display" class="auth-hint-display" hidden></p>
+
+          <div class="auth-toggle">
+            <span id="auth-toggle-text" data-i18n="noAccount">ليس لديك حساب؟</span>
+            <button type="button" id="auth-toggle-btn" class="auth-toggle-btn" data-i18n="goToSignup">إنشاء حساب جديد</button>
+          </div>
+
+          <div id="forgot-link-wrapper" class="forgot-link-wrapper">
+            <button type="button" id="forgot-link-btn" class="forgot-link-btn" data-i18n="forgotPasswordLink">🔑 نسيت كلمة المرور؟</button>
+          </div>
+        </div>
+
+        <!-- ===== شاشة إعادة تعيين كلمة المرور ===== -->
+        <div id="forgot-section" hidden>
+          <label for="forgot-username" data-i18n="usernameLabel">اسم المستخدم</label>
+          <input type="text" id="forgot-username" autocomplete="username" />
+
+          <button type="button" id="forgot-show-hint-btn" class="auth-remind-btn" data-i18n="forgotShowHintBtn">عرض التلميح</button>
+          <p id="forgot-hint-display" class="auth-hint-display" hidden></p>
+
+          <label for="forgot-hint-verify" data-i18n="forgotHintVerifyLabel">أدخل التلميح للتحقق</label>
+          <input type="text" id="forgot-hint-verify" autocomplete="off" />
+
+          <label for="forgot-new-password" data-i18n="forgotNewPwLabel">كلمة المرور الجديدة</label>
+          <input type="password" id="forgot-new-password" autocomplete="new-password" />
+
+          <div class="forgot-back-wrapper">
+            <button type="button" id="back-to-login-btn" class="forgot-link-btn" data-i18n="backToLoginBtn">← العودة للدخول</button>
+          </div>
         </div>
       </form>
     </div>
@@ -60,6 +88,7 @@
         <span class="user-icon">👤</span>
         <span class="user-welcome" data-i18n="welcome">مرحباً،</span>
         <span id="user-name" class="user-name"></span>
+        <button id="change-pw-btn" class="change-pw-btn" type="button" data-i18n="changePwBtn">🔑 تغيير كلمة المرور</button>
         <button id="logout-btn" class="logout-btn" type="button" data-i18n="logoutBtn" data-i18n-title="logoutBtn" title="تسجيل الخروج">
           تسجيل الخروج
         </button>
@@ -136,15 +165,47 @@
     </footer>
   </div>
 
+  <!-- مودال تغيير كلمة المرور -->
+  <div id="change-pw-modal" class="trash-modal" hidden>
+    <div class="trash-modal-content change-pw-modal-content">
+      <div class="trash-modal-header">
+        <h2 data-i18n="changePwModalTitle">تغيير كلمة المرور</h2>
+        <button id="change-pw-close-btn" class="trash-close-btn" aria-label="إغلاق">✕</button>
+      </div>
+      <form id="change-pw-form" class="change-pw-form" autocomplete="off">
+        <label for="cp-old" data-i18n="changePwOldLabel">كلمة المرور الحالية</label>
+        <input type="password" id="cp-old" autocomplete="current-password" />
+        <label for="cp-new" data-i18n="changePwNewLabel">كلمة المرور الجديدة</label>
+        <input type="password" id="cp-new" autocomplete="new-password" />
+        <label for="cp-confirm" data-i18n="changePwConfirmLabel">تأكيد كلمة المرور الجديدة</label>
+        <input type="password" id="cp-confirm" autocomplete="new-password" />
+        <p id="change-pw-error" class="auth-error" hidden></p>
+        <div class="change-pw-actions">
+          <button type="submit" id="change-pw-submit-btn" class="auth-submit-btn" data-i18n="changePwSubmitBtn">تغيير</button>
+          <button type="button" id="change-pw-cancel-btn" class="auth-toggle-btn" data-i18n="changePwCancelBtn">إلغاء</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <div id="trash-modal" class="trash-modal" hidden>
     <div class="trash-modal-content">
       <div class="trash-modal-header">
         <h2 data-i18n="trashTitle">🗑 سلة المحذوفات</h2>
-        <button id="trash-close-btn" class="trash-close-btn" data-i18n-aria="closeAria" aria-label="إغلاق">✕</button>
+        <div class="trash-header-actions">
+          <button id="trash-delete-all-btn" class="trash-delete-all-btn" data-i18n="trashDeleteAllBtn">🗑 حذف الكل نهائياً</button>
+          <button id="trash-close-btn" class="trash-close-btn" data-i18n-aria="closeAria" aria-label="إغلاق">✕</button>
+        </div>
       </div>
       <p class="trash-note" data-i18n="trashNote">
         يتم الحذف النهائي تلقائياً بعد مرور 30 يوماً من الحذف.
       </p>
+      <div id="trash-select-all-row" class="trash-select-all-row" hidden>
+        <label class="trash-select-all-label">
+          <input type="checkbox" id="trash-select-all-cb" />
+          <span data-i18n="trashSelectAll">تحديد الكل</span>
+        </label>
+      </div>
       <div id="trash-list" class="trash-list"></div>
     </div>
   </div>

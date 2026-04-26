@@ -8,11 +8,11 @@ const APP_ORIGIN = "days_counter";
 
 // توليد اقتراحات أسماء بديلة قريبة
 function generateUsernameSuggestions(base) {
-  const year = new Date().getFullYear();
+  const year = String(new Date().getFullYear());
   const suffixes = [
-    String(Math.floor(Math.random() * 900) + 100), // 3 أرقام عشوائية
-    String(year), // السنة الحالية
-    "_" + year.slice(-2), // آخر رقمين من السنة
+    String(Math.floor(Math.random() * 900) + 100),
+    year,
+    "_" + year.slice(-2),
   ];
   return suffixes.map(s => base + s).slice(0, 3);
 }
@@ -105,6 +105,48 @@ async function dbSignup(username, password, hint) {
     console.error("Supabase signup error:", error.message);
     return { ok: false, error: error.message };
   }
+  return { ok: true };
+}
+
+// جلب التلميح فقط (لشاشة نسيت كلمة المرور)
+async function dbGetHint(username) {
+  const user = await dbGetUser(username, true);
+  if (!user) return { exists: false, hint: null };
+  return { exists: true, hint: user.hint || "" };
+}
+
+// إعادة تعيين كلمة المرور بالتحقق من التلميح
+async function dbResetPasswordWithHint(username, hintInput, newPassword) {
+  const user = await dbGetUser(username, true);
+  if (!user) return { ok: false, error: "user_not_found" };
+  const storedHint = (user.hint || "").trim().toLowerCase();
+  const enteredHint = (hintInput || "").trim().toLowerCase();
+  if (!storedHint || storedHint !== enteredHint) {
+    return { ok: false, error: "hint_mismatch" };
+  }
+  const newHash = await hashPassword(newPassword);
+  const { error } = await supabaseClient
+    .from("users")
+    .update({ password_hash: newHash })
+    .eq("username", username)
+    .eq("app_origin", APP_ORIGIN);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+// تغيير كلمة المرور (المستخدم مسجّل دخوله)
+async function dbChangePassword(username, oldPassword, newPassword) {
+  const user = await dbGetUser(username, true);
+  if (!user) return { ok: false, error: "user_not_found" };
+  const oldHash = await hashPassword(oldPassword);
+  if (oldHash !== user.password_hash) return { ok: false, error: "wrong_old_password" };
+  const newHash = await hashPassword(newPassword);
+  const { error } = await supabaseClient
+    .from("users")
+    .update({ password_hash: newHash })
+    .eq("username", username)
+    .eq("app_origin", APP_ORIGIN);
+  if (error) return { ok: false, error: error.message };
   return { ok: true };
 }
 
@@ -206,6 +248,33 @@ async function dbPurgeOldDeleted() {
 
   if (error) {
     console.error("Supabase purge error:", error.message);
+  }
+}
+
+async function dbPermanentDeleteAll() {
+  if (!currentUsername) return;
+  // حذف نهائي فوري لجميع العناصر في سلة المحذوفات (بصرف النظر عن العمر)
+  const { error } = await supabaseClient
+    .from("days_counter")
+    .delete()
+    .not("deleted_at", "is", null)
+    .eq("user_name", currentUsername);
+
+  if (error) {
+    console.error("Supabase permanent delete all error:", error.message);
+  }
+}
+
+async function dbPermanentDeleteSelected(entryIds) {
+  if (!currentUsername || !entryIds || entryIds.length === 0) return;
+  const { error } = await supabaseClient
+    .from("days_counter")
+    .delete()
+    .in("entry_id", entryIds.map(String))
+    .eq("user_name", currentUsername);
+
+  if (error) {
+    console.error("Supabase permanent delete selected error:", error.message);
   }
 }
 

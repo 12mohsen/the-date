@@ -18,6 +18,9 @@ const langToggleAuthBtn = document.getElementById("lang-toggle-auth");
 const trashBtn = document.getElementById("trash-btn");
 const trashModal = document.getElementById("trash-modal");
 const trashCloseBtn = document.getElementById("trash-close-btn");
+const trashDeleteAllBtn   = document.getElementById("trash-delete-all-btn");
+const trashSelectAllRow   = document.getElementById("trash-select-all-row");
+const trashSelectAllCb    = document.getElementById("trash-select-all-cb");
 const trashList = document.getElementById("trash-list");
 const STORAGE_KEY = "dayCounterState";
 const STORAGE_SAVED_KEY = "dayCounterSaved";
@@ -38,12 +41,32 @@ const authSubmitBtn  = document.getElementById("auth-submit-btn");
 const authRemindBtn  = document.getElementById("auth-remind-btn");
 const authHintDisplay= document.getElementById("auth-hint-display");
 const authError      = document.getElementById("auth-error");
-const authToggleText = document.getElementById("auth-toggle-text");
-const authToggleBtn  = document.getElementById("auth-toggle-btn");
-const userNameEl     = document.getElementById("user-name");
-const logoutBtn      = document.getElementById("logout-btn");
+const authToggleText    = document.getElementById("auth-toggle-text");
+const authToggleBtn     = document.getElementById("auth-toggle-btn");
+const authLoginFields   = document.getElementById("auth-login-fields");
+const forgotLinkWrapper = document.getElementById("forgot-link-wrapper");
+const forgotLinkBtn     = document.getElementById("forgot-link-btn");
+const forgotSection     = document.getElementById("forgot-section");
+const forgotUsername    = document.getElementById("forgot-username");
+const forgotShowHintBtn = document.getElementById("forgot-show-hint-btn");
+const forgotHintDisplay = document.getElementById("forgot-hint-display");
+const forgotHintVerify  = document.getElementById("forgot-hint-verify");
+const forgotNewPassword = document.getElementById("forgot-new-password");
+const backToLoginBtn    = document.getElementById("back-to-login-btn");
+const userNameEl        = document.getElementById("user-name");
+const logoutBtn         = document.getElementById("logout-btn");
+const changePwBtn       = document.getElementById("change-pw-btn");
+const changePwModal     = document.getElementById("change-pw-modal");
+const changePwCloseBtn  = document.getElementById("change-pw-close-btn");
+const changePwForm      = document.getElementById("change-pw-form");
+const changePwOld       = document.getElementById("cp-old");
+const changePwNew       = document.getElementById("cp-new");
+const changePwConfirm   = document.getElementById("cp-confirm");
+const changePwError     = document.getElementById("change-pw-error");
+const changePwSubmitBtn = document.getElementById("change-pw-submit-btn");
+const changePwCancelBtn = document.getElementById("change-pw-cancel-btn");
 
-let authMode = "login"; // login | signup
+let authMode = "login"; // login | signup | forgot
 
 let savedEntries = [];
 let mode = "since"; // since | until
@@ -799,31 +822,168 @@ function showMainApp() {
 
 function setAuthMode(newMode) {
   authMode = newMode;
+  const isForgot = (newMode === "forgot");
+  const isSignup = (newMode === "signup");
+
+  // إخفاء / إظهار القسمين الرئيسيين
+  if (authLoginFields) authLoginFields.hidden = isForgot;
+  if (forgotSection)   forgotSection.hidden   = !isForgot;
+
   if (newMode === "login") {
-    authTitle.textContent = t("authTitleLogin");
-    authSubtitle.textContent = t("authSubtitleLogin");
-    authSubmitBtn.textContent = t("loginBtn");
-    authHintField.hidden = true;
-    authToggleText.textContent = t("noAccount");
-    authToggleBtn.textContent = t("goToSignup");
+    if (authTitle)         authTitle.textContent     = t("authTitleLogin");
+    if (authSubtitle)      authSubtitle.textContent  = t("authSubtitleLogin");
+    if (authHintField)     authHintField.hidden       = true;
+    if (authSubmitBtn)     authSubmitBtn.textContent = t("loginBtn");
+    if (authRemindBtn)     authRemindBtn.hidden       = true;
+    if (authToggleText)    authToggleText.textContent = t("noAccount");
+    if (authToggleBtn)     authToggleBtn.textContent  = t("goToSignup");
+    if (forgotLinkWrapper) forgotLinkWrapper.hidden   = false;
+  } else if (isSignup) {
+    if (authTitle)         authTitle.textContent     = t("authTitleSignup");
+    if (authSubtitle)      authSubtitle.textContent  = t("authSubtitleSignup");
+    if (authHintField)     authHintField.hidden       = false;
+    if (authSubmitBtn)     authSubmitBtn.textContent = t("signupBtn");
+    if (authRemindBtn)     authRemindBtn.hidden       = true;
+    if (authToggleText)    authToggleText.textContent = t("haveAccount");
+    if (authToggleBtn)     authToggleBtn.textContent  = t("goToLogin");
+    if (forgotLinkWrapper) forgotLinkWrapper.hidden   = true;
   } else {
-    authTitle.textContent = t("authTitleSignup");
-    authSubtitle.textContent = t("authSubtitleSignup");
-    authSubmitBtn.textContent = t("signupBtn");
-    authHintField.hidden = false;
-    authToggleText.textContent = t("haveAccount");
-    authToggleBtn.textContent = t("goToLogin");
+    // forgot
+    if (authTitle)      authTitle.textContent    = t("forgotTitle");
+    if (authSubtitle)   authSubtitle.textContent = t("forgotSubtitle");
+    if (forgotHintDisplay) { forgotHintDisplay.hidden = true; forgotHintDisplay.textContent = ""; }
+    if (forgotHintVerify)  forgotHintVerify.value  = "";
+    if (forgotNewPassword) forgotNewPassword.value = "";
+    // نسخ اسم المستخدم المُدخل مسبقاً للراحة
+    if (forgotUsername && authUsername) forgotUsername.value = authUsername.value || "";
   }
   clearAuthMessages();
 }
 
 function clearAuthMessages() {
+  if (authError)        { authError.hidden = true; authError.textContent = ""; }
+  if (authHintDisplay)  { authHintDisplay.hidden = true; authHintDisplay.textContent = ""; }
+  if (authRemindBtn)    { authRemindBtn.hidden = true; authRemindBtn.dataset.hint = ""; }
+  if (forgotHintDisplay){ forgotHintDisplay.hidden = true; forgotHintDisplay.textContent = ""; }
+}
+
+async function handleForgotShowHint() {
+  const username = ((forgotUsername || authUsername) ? (forgotUsername || authUsername).value : "").trim();
+  if (!username) {
+    showAuthError(t("forgotEnterUsername"));
+    return;
+  }
+  forgotShowHintBtn.disabled = true;
+  const res = await dbGetHint(username);
+  forgotShowHintBtn.disabled = false;
+  if (!res.exists) {
+    showAuthError(t("forgotUserNotFound"));
+    return;
+  }
+  if (!res.hint) {
+    forgotHintDisplay.textContent = t("noHintSet");
+  } else {
+    forgotHintDisplay.textContent = t("hintPrefix") + res.hint;
+  }
+  forgotHintDisplay.hidden = false;
   authError.hidden = true;
-  authError.textContent = "";
-  authHintDisplay.hidden = true;
-  authHintDisplay.textContent = "";
-  authRemindBtn.hidden = true;
-  authRemindBtn.dataset.hint = "";
+}
+
+async function handleForgotSubmit() {
+  const username  = ((forgotUsername || authUsername) ? (forgotUsername || authUsername).value : "").trim();
+  const hintInput = (forgotHintVerify ? forgotHintVerify.value : "").trim();
+  const newPw     = (forgotNewPassword ? forgotNewPassword.value : "").trim();
+
+  if (!username || !hintInput || !newPw) {
+    showAuthError(t("forgotEnterAll"));
+    return;
+  }
+
+  const submitBtn = document.getElementById("auth-submit-btn");
+  // نعيد استخدام الزر إذا كان موجوداً لاحقاً، أو نعطّل show-hint btn
+  forgotShowHintBtn.disabled = true;
+  forgotHintVerify.disabled  = true;
+  forgotNewPassword.disabled = true;
+  backToLoginBtn.disabled    = true;
+
+  const res = await dbResetPasswordWithHint(username, hintInput, newPw);
+
+  forgotShowHintBtn.disabled = false;
+  forgotHintVerify.disabled  = false;
+  forgotNewPassword.disabled = false;
+  backToLoginBtn.disabled    = false;
+
+  if (res.ok) {
+    showAuthError(t("forgotSuccess"));
+    authError.style.color = "var(--color-success, #22c55e)";
+    setTimeout(() => {
+      authError.style.color = "";
+      setAuthMode("login");
+      if (authUsername) authUsername.value = username;
+    }, 2500);
+  } else if (res.error === "user_not_found") {
+    showAuthError(t("forgotUserNotFound"));
+  } else {
+    showAuthError(t("forgotHintMismatch"));
+  }
+}
+
+function openChangePwModal() {
+  changePwOld.value = "";
+  changePwNew.value = "";
+  changePwConfirm.value = "";
+  changePwError.hidden = true;
+  changePwError.textContent = "";
+  changePwModal.hidden = false;
+  changePwOld.focus();
+}
+
+function closeChangePwModal() {
+  changePwModal.hidden = true;
+}
+
+async function handleChangePwSubmit(e) {
+  e.preventDefault();
+  const oldPw  = (changePwOld.value || "").trim();
+  const newPw  = (changePwNew.value || "").trim();
+  const confPw = (changePwConfirm.value || "").trim();
+
+  changePwError.hidden = true;
+
+  if (!oldPw || !newPw || !confPw) {
+    changePwError.textContent = t("changePwEmpty");
+    changePwError.hidden = false;
+    return;
+  }
+  if (newPw !== confPw) {
+    changePwError.textContent = t("changePwMismatch");
+    changePwError.hidden = false;
+    return;
+  }
+
+  changePwSubmitBtn.disabled = true;
+  changePwSubmitBtn.textContent = t("changePwProcessing");
+
+  const res = await dbChangePassword(currentUsername, oldPw, newPw);
+
+  changePwSubmitBtn.disabled = false;
+  changePwSubmitBtn.textContent = t("changePwSubmitBtn");
+
+  if (res.ok) {
+    changePwError.style.color = "var(--color-success, #22c55e)";
+    changePwError.textContent = t("changePwSuccess");
+    changePwError.hidden = false;
+    setTimeout(() => {
+      changePwError.style.color = "";
+      closeChangePwModal();
+    }, 2000);
+  } else if (res.error === "wrong_old_password") {
+    changePwError.textContent = t("changePwWrongOld");
+    changePwError.hidden = false;
+  } else {
+    changePwError.textContent = res.error || t("changePwEmpty");
+    changePwError.hidden = false;
+  }
 }
 
 function showAuthError(msg) {
@@ -868,6 +1028,7 @@ async function startAppForUser(username) {
 
 async function handleAuthSubmit(e) {
   e.preventDefault();
+  if (authMode === "forgot") { handleForgotSubmit(); return; }
   clearAuthMessages();
 
   const username = (authUsername.value || "").trim();
@@ -955,6 +1116,42 @@ if (authToggleBtn) authToggleBtn.addEventListener("click", () => {
 if (authRemindBtn) authRemindBtn.addEventListener("click", handleRemindClick);
 if (logoutBtn) logoutBtn.addEventListener("click", handleLogout);
 
+// نسيت كلمة المرور
+if (forgotLinkBtn)     forgotLinkBtn.addEventListener("click", () => setAuthMode("forgot"));
+if (forgotShowHintBtn) forgotShowHintBtn.addEventListener("click", handleForgotShowHint);
+if (backToLoginBtn)    backToLoginBtn.addEventListener("click", () => setAuthMode("login"));
+if (forgotSection) {
+  forgotSection.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") { e.preventDefault(); handleForgotSubmit(); }
+  });
+}
+if (forgotSection) {
+  const forgotResetBtn = document.createElement("button");
+  forgotResetBtn.type = "button";
+  forgotResetBtn.className = "auth-submit-btn";
+  forgotResetBtn.id = "forgot-submit-btn";
+  forgotResetBtn.setAttribute("data-i18n", "forgotSubmitBtn");
+  forgotResetBtn.textContent = t("forgotSubmitBtn");
+  forgotResetBtn.addEventListener("click", handleForgotSubmit);
+  const backWrapper = forgotSection.querySelector(".forgot-back-wrapper");
+  if (backWrapper) {
+    backWrapper.before(forgotResetBtn);
+  } else {
+    forgotSection.appendChild(forgotResetBtn);
+  }
+}
+
+// تغيير كلمة المرور
+if (changePwBtn)       changePwBtn.addEventListener("click", openChangePwModal);
+if (changePwCloseBtn)  changePwCloseBtn.addEventListener("click", closeChangePwModal);
+if (changePwCancelBtn) changePwCancelBtn.addEventListener("click", closeChangePwModal);
+if (changePwForm)      changePwForm.addEventListener("submit", handleChangePwSubmit);
+if (changePwModal) {
+  changePwModal.addEventListener("click", (e) => {
+    if (e.target === changePwModal) closeChangePwModal();
+  });
+}
+
 // ============ ربط زر تبديل اللغة ============
 function onLanguageChanged() {
   // بعد تغيير اللغة: أعد رسم القوائم والنصوص الديناميكية
@@ -981,15 +1178,20 @@ loadTheme();
 dbKeepAlivePing();
 
 (async function initApp() {
-  const savedUsername = readSession();
-  if (savedUsername) {
-    // تحقّق من أن المستخدم ما زال موجوداً في القاعدة قبل استعادة الجلسة
-    const user = await dbGetUser(savedUsername);
-    if (user) {
-      restoreState();
-      await startAppForUser(savedUsername);
-      return;
+  try {
+    const savedUsername = readSession();
+    if (savedUsername) {
+      // تحقّق من أن المستخدم ما زال موجوداً في القاعدة قبل استعادة الجلسة
+      const user = await dbGetUser(savedUsername);
+      if (user) {
+        restoreState();
+        await startAppForUser(savedUsername);
+        return;
+      }
+      clearSession();
     }
+  } catch (e) {
+    console.error("initApp error:", e);
     clearSession();
   }
   // لا توجد جلسة → اعرض شاشة تسجيل الدخول
@@ -1066,11 +1268,30 @@ async function openTrashModal() {
   renderTrashList(deleted);
 }
 
+function updateTrashDeleteBtn() {
+  if (!trashDeleteAllBtn || !trashList) return;
+  const checked = trashList.querySelectorAll(".trash-item-check:checked");
+  const n = checked.length;
+  trashDeleteAllBtn.disabled = (n === 0);
+  trashDeleteAllBtn.textContent = n > 0 ? t("trashDeleteSelected", n) : t("trashDeleteAllBtn");
+
+  if (trashSelectAllCb) {
+    const all = trashList.querySelectorAll(".trash-item-check");
+    trashSelectAllCb.checked       = all.length > 0 && n === all.length;
+    trashSelectAllCb.indeterminate = n > 0 && n < all.length;
+  }
+}
+
 function renderTrashList(deleted) {
   if (!trashList) return;
   trashList.innerHTML = "";
 
-  if (!deleted || deleted.length === 0) {
+  const hasItems = deleted && deleted.length > 0;
+  if (trashSelectAllRow) trashSelectAllRow.hidden = !hasItems;
+  if (trashSelectAllCb)  { trashSelectAllCb.checked = false; trashSelectAllCb.indeterminate = false; }
+  if (trashDeleteAllBtn) { trashDeleteAllBtn.disabled = true; trashDeleteAllBtn.textContent = t("trashDeleteAllBtn"); }
+
+  if (!hasItems) {
     trashList.innerHTML = `<p class="trash-empty">${t("trashEmpty")}</p>`;
     return;
   }
@@ -1078,6 +1299,12 @@ function renderTrashList(deleted) {
   deleted.forEach((entry) => {
     const item = document.createElement("div");
     item.className = "trash-item";
+
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.className = "trash-item-check";
+    cb.dataset.entryId = String(entry.id);
+    cb.addEventListener("change", updateTrashDeleteBtn);
 
     const info = document.createElement("div");
     info.className = "trash-item-info";
@@ -1115,12 +1342,12 @@ function renderTrashList(deleted) {
       restoreBtn.disabled = true;
       restoreBtn.textContent = t("trashRestoring");
       await dbRestoreEntry(entry.id);
-      // أعد جلب القوائم
       await loadSavedEntriesFromCloud();
       const deletedNow = await dbFetchDeletedEntries();
       renderTrashList(deletedNow);
     });
 
+    item.appendChild(cb);
     item.appendChild(info);
     item.appendChild(restoreBtn);
     trashList.appendChild(item);
@@ -1136,6 +1363,30 @@ if (trashBtn) {
 }
 if (trashCloseBtn) {
   trashCloseBtn.addEventListener("click", closeTrashModal);
+}
+if (trashSelectAllCb) {
+  trashSelectAllCb.addEventListener("change", () => {
+    const checkboxes = trashList ? trashList.querySelectorAll(".trash-item-check") : [];
+    checkboxes.forEach(c => { c.checked = trashSelectAllCb.checked; });
+    updateTrashDeleteBtn();
+  });
+}
+if (trashDeleteAllBtn) {
+  trashDeleteAllBtn.addEventListener("click", async () => {
+    const checked = trashList ? trashList.querySelectorAll(".trash-item-check:checked") : [];
+    const ids = Array.from(checked).map(c => c.dataset.entryId);
+    if (ids.length === 0) return;
+    const allCount = trashList ? trashList.querySelectorAll(".trash-item-check").length : 0;
+    const msg = ids.length === allCount
+      ? t("trashDeleteAllConfirm")
+      : t("trashDeleteSelectedConfirm", ids.length);
+    if (!confirm(msg)) return;
+    trashDeleteAllBtn.disabled = true;
+    trashDeleteAllBtn.textContent = t("trashDeleting");
+    await dbPermanentDeleteSelected(ids);
+    const deletedNow = await dbFetchDeletedEntries();
+    renderTrashList(deletedNow);
+  });
 }
 if (trashModal) {
   trashModal.addEventListener("click", (e) => {

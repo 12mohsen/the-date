@@ -1090,11 +1090,7 @@ async function handleAuthSubmit(e) {
         showAuthError(t("errNeedHint"));
         return;
       }
-      const existing = await dbGetUser(username);
-      if (existing) {
-        showAuthError(t("errUsernameTaken"));
-        return;
-      }
+      // التحقق من التكرار يتم داخل dbSignup (عالمياً عبر كل التطبيقات)
       const res = await dbSignup(username, password, hintVal);
       if (res.ok) {
         saveRememberedCredentials(username, password);
@@ -1217,7 +1213,7 @@ dbKeepAlivePing();
     const savedUsername = readSession();
     if (savedUsername) {
       // تحقّق من أن المستخدم ما زال موجوداً في القاعدة قبل استعادة الجلسة
-      const user = await dbGetUser(savedUsername);
+      const user = await dbGetUser(savedUsername, true);
       if (user) {
         restoreState();
         await startAppForUser(savedUsername);

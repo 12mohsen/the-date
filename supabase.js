@@ -80,14 +80,19 @@ async function dbGetUser(username, checkAppOrigin = false) {
 
 // إنشاء مستخدم جديد
 async function dbSignup(username, password, hint) {
-  // التحقق من وجود الاسم في نفس التطبيق
-  const existing = await dbGetUser(username, true);
+  // التحقق العالمي: الاسم يجب أن يكون غير موجود في أي تطبيق (limit 1 للسماح بتعدد الأسطر بين التطبيقات)
+  const { data: existingRows } = await supabaseClient
+    .from("users")
+    .select("app_origin")
+    .eq("username", username)
+    .limit(1);
+  const existing = existingRows && existingRows.length ? existingRows[0] : null;
   if (existing) {
     const suggestions = generateUsernameSuggestions(username);
-    return { 
-      ok: false, 
+    return {
+      ok: false,
       error: t("errUsernameTakenInApp"),
-      suggestions 
+      suggestions
     };
   }
 
@@ -150,11 +155,19 @@ async function dbChangePassword(username, oldPassword, newPassword) {
   return { ok: true };
 }
 
-// تسجيل الدخول: يرجع { ok, exists, hint }
+// تسجيل الدخول: يرجع { ok, exists, hint, otherApp }
 async function dbLogin(username, password) {
-  const user = await dbGetUser(username);
+  // ابحث فقط ضمن مستخدمي هذا التطبيق
+  const user = await dbGetUser(username, true);
   if (!user) {
-    return { ok: false, exists: false };
+    // تحقق إن كان الاسم مسجلاً في تطبيق آخر لإرشاد المستخدم
+    const { data: otherRows } = await supabaseClient
+      .from("users")
+      .select("app_origin")
+      .eq("username", username)
+      .limit(1);
+    const otherApp = otherRows && otherRows.length ? otherRows[0].app_origin : null;
+    return { ok: false, exists: false, otherApp };
   }
 
   const passwordHash = await hashPassword(password);

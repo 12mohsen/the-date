@@ -770,6 +770,15 @@ body.light-theme .trash-item-title {
   margin-bottom: 10px;
 }
 
+.auth-app-name {
+  font-size: 1.6rem;
+  font-weight: 800;
+  margin: 0 0 12px;
+  text-align: center;
+  color: var(--primary, #2563eb);
+  letter-spacing: 0.5px;
+}
+
 .auth-card h2 {
   color: #f59e0b;
   margin-bottom: 6px;

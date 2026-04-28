@@ -138,6 +138,18 @@ const TRANSLATIONS = {
     trashDeleting:      "جارٍ الحذف...",
     closeAria:          "إغلاق",
 
+    // المشاركة
+    shareBtn:           "🔗 مشاركة",
+    shareModalTitle:    "🔗 مشاركة التطبيق",
+    shareIntro:         "جرّب تطبيق",
+    shareWebLabel:      "رابط الموقع:",
+    shareApkLabel:      "رابط تحميل APK:",
+    shareEmail:         "البريد الإلكتروني",
+    shareSms:           "رسالة نصية",
+    shareCopy:          "نسخ الروابط",
+    shareCopied:        "✅ تم نسخ الروابط",
+    shareCopyFailed:    "تعذّر النسخ، انسخ الروابط يدوياً",
+
     // Footer
     copyright:          "حقوق الملكية mohsen",
 
@@ -272,6 +284,18 @@ const TRANSLATIONS = {
     trashDeleteSelectedConfirm: (n) => `Are you sure you want to permanently delete ${n} selected item(s)?\nThis cannot be undone.`,
     trashDeleting:      "Deleting...",
     closeAria:          "Close",
+
+    // Share
+    shareBtn:           "🔗 Share",
+    shareModalTitle:    "🔗 Share the app",
+    shareIntro:         "Try the app",
+    shareWebLabel:      "Website link:",
+    shareApkLabel:      "APK download link:",
+    shareEmail:         "Email",
+    shareSms:           "SMS",
+    shareCopy:          "Copy links",
+    shareCopied:        "✅ Links copied",
+    shareCopyFailed:    "Copy failed, please copy manually",
 
     copyright:          "© mohsen",
 

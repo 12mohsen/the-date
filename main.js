@@ -1,3 +1,8 @@
+// ====== روابط المشاركة (يمكن تعديلها يدوياً هنا) ======
+const SHARE_WEB_URL = "https://the-date.netlify.app/";
+const SHARE_APK_URL = "https://www.appcreator24.com/app3836747-8chgli";
+// =====================================================
+
 const singleDateInput = document.getElementById("single-date");
 const singleDateWrapper = document.getElementById("single-date-wrapper");
 const modeSinceBtn = document.getElementById("mode-since");
@@ -67,6 +72,15 @@ const changePwConfirm   = document.getElementById("cp-confirm");
 const changePwError     = document.getElementById("change-pw-error");
 const changePwSubmitBtn = document.getElementById("change-pw-submit-btn");
 const changePwCancelBtn = document.getElementById("change-pw-cancel-btn");
+
+// عناصر المشاركة
+const shareBtn       = document.getElementById("share-btn");
+const shareModal     = document.getElementById("share-modal");
+const shareCloseBtn  = document.getElementById("share-close-btn");
+const shareWebLink   = document.getElementById("share-web-link");
+const shareApkLink   = document.getElementById("share-apk-link");
+const shareToast     = document.getElementById("share-toast");
+const sharePlatformBtns = document.querySelectorAll(".share-platform-btn");
 
 let authMode = "login"; // login | signup | forgot
 
@@ -1182,6 +1196,115 @@ if (changePwModal) {
     if (e.target === changePwModal) closeChangePwModal();
   });
 }
+
+// ============ المشاركة ============
+function buildShareMessage() {
+  const title = (typeof t === "function") ? t("appTitle") : "عداد الأيام";
+  const intro = (typeof t === "function") ? t("shareIntro") : "جرّب تطبيق";
+  const webLbl = (typeof t === "function") ? t("shareWebLabel") : "رابط الموقع:";
+  const apkLbl = (typeof t === "function") ? t("shareApkLabel") : "رابط تحميل APK:";
+  return `${intro} ${title}\n${webLbl} ${SHARE_WEB_URL}\n${apkLbl} ${SHARE_APK_URL}`;
+}
+
+function openShareModal() {
+  if (!shareModal) return;
+  if (shareWebLink) {
+    shareWebLink.href = SHARE_WEB_URL;
+    shareWebLink.textContent = SHARE_WEB_URL;
+  }
+  if (shareApkLink) {
+    shareApkLink.href = SHARE_APK_URL;
+    shareApkLink.textContent = SHARE_APK_URL;
+  }
+  if (shareToast) {
+    shareToast.hidden = true;
+    shareToast.textContent = "";
+  }
+  shareModal.hidden = false;
+}
+
+function closeShareModal() {
+  if (shareModal) shareModal.hidden = true;
+}
+
+function showShareToast(msg) {
+  if (!shareToast) return;
+  shareToast.textContent = msg;
+  shareToast.hidden = false;
+  setTimeout(() => { shareToast.hidden = true; }, 2200);
+}
+
+function handleShareTo(platform) {
+  const msg = buildShareMessage();
+  const encMsg = encodeURIComponent(msg);
+  const encWeb = encodeURIComponent(SHARE_WEB_URL);
+  const subject = encodeURIComponent((typeof t === "function") ? t("appTitle") : "عداد الأيام");
+  let url = "";
+  switch (platform) {
+    case "whatsapp":
+      url = `https://wa.me/?text=${encMsg}`;
+      break;
+    case "telegram":
+      url = `https://t.me/share/url?url=${encWeb}&text=${encMsg}`;
+      break;
+    case "twitter":
+      url = `https://twitter.com/intent/tweet?text=${encMsg}`;
+      break;
+    case "facebook":
+      url = `https://www.facebook.com/sharer/sharer.php?u=${encWeb}&quote=${encMsg}`;
+      break;
+    case "messenger":
+      url = `https://www.facebook.com/dialog/send?link=${encWeb}&app_id=140586622674265&redirect_uri=${encWeb}`;
+      break;
+    case "email":
+      url = `mailto:?subject=${subject}&body=${encMsg}`;
+      break;
+    case "sms":
+      url = `sms:?body=${encMsg}`;
+      break;
+    case "copy":
+      copyShareLinks();
+      return;
+  }
+  if (url) {
+    window.open(url, "_blank", "noopener,noreferrer");
+  }
+}
+
+async function copyShareLinks() {
+  const msg = buildShareMessage();
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(msg);
+    } else {
+      const ta = document.createElement("textarea");
+      ta.value = msg;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+    }
+    showShareToast((typeof t === "function") ? t("shareCopied") : "✅ تم نسخ الروابط");
+  } catch (err) {
+    showShareToast((typeof t === "function") ? t("shareCopyFailed") : "تعذّر النسخ");
+  }
+}
+
+if (shareBtn)      shareBtn.addEventListener("click", openShareModal);
+if (shareCloseBtn) shareCloseBtn.addEventListener("click", closeShareModal);
+if (shareModal) {
+  shareModal.addEventListener("click", (e) => {
+    if (e.target === shareModal) closeShareModal();
+  });
+}
+sharePlatformBtns.forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const platform = btn.getAttribute("data-share");
+    if (platform) handleShareTo(platform);
+  });
+});
 
 // ============ ربط زر تبديل اللغة ============
 function onLanguageChanged() {

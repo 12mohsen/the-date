@@ -97,6 +97,7 @@
         <span class="user-welcome" data-i18n="welcome">مرحباً،</span>
         <span id="user-name" class="user-name"></span>
         <button id="change-pw-btn" class="change-pw-btn" type="button" data-i18n="changePwBtn">🔑 تغيير كلمة المرور</button>
+        <button id="share-btn" class="change-pw-btn share-btn" type="button" data-i18n="shareBtn">🔗 مشاركة</button>
         <button id="logout-btn" class="logout-btn" type="button" data-i18n="logoutBtn" data-i18n-title="logoutBtn" title="تسجيل الخروج">
           تسجيل الخروج
         </button>
@@ -193,6 +194,54 @@
           <button type="button" id="change-pw-cancel-btn" class="auth-toggle-btn" data-i18n="changePwCancelBtn">إلغاء</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- مودال المشاركة -->
+  <div id="share-modal" class="trash-modal" hidden>
+    <div class="trash-modal-content share-modal-content">
+      <div class="trash-modal-header">
+        <h2 data-i18n="shareModalTitle">🔗 مشاركة التطبيق</h2>
+        <button id="share-close-btn" class="trash-close-btn" data-i18n-aria="closeAria" aria-label="إغلاق">✕</button>
+      </div>
+
+      <div class="share-link-row">
+        <span class="share-link-label" data-i18n="shareWebLabel">رابط الموقع:</span>
+        <a id="share-web-link" class="share-link-anchor" href="#" target="_blank" rel="noopener"></a>
+      </div>
+      <div class="share-link-row">
+        <span class="share-link-label" data-i18n="shareApkLabel">رابط تحميل APK:</span>
+        <a id="share-apk-link" class="share-link-anchor" href="#" target="_blank" rel="noopener"></a>
+      </div>
+
+      <div class="share-platforms">
+        <button class="share-platform-btn" data-share="whatsapp" type="button">
+          <span class="share-icon">🟢</span><span>WhatsApp</span>
+        </button>
+        <button class="share-platform-btn" data-share="telegram" type="button">
+          <span class="share-icon">✈️</span><span>Telegram</span>
+        </button>
+        <button class="share-platform-btn" data-share="twitter" type="button">
+          <span class="share-icon">🐦</span><span>Twitter / X</span>
+        </button>
+        <button class="share-platform-btn" data-share="facebook" type="button">
+          <span class="share-icon">📘</span><span>Facebook</span>
+        </button>
+        <button class="share-platform-btn" data-share="messenger" type="button">
+          <span class="share-icon">💬</span><span>Messenger</span>
+        </button>
+        <button class="share-platform-btn" data-share="email" type="button">
+          <span class="share-icon">📧</span><span data-i18n="shareEmail">Email</span>
+        </button>
+        <button class="share-platform-btn" data-share="sms" type="button">
+          <span class="share-icon">📱</span><span data-i18n="shareSms">SMS</span>
+        </button>
+        <button class="share-platform-btn" data-share="copy" type="button">
+          <span class="share-icon">📋</span><span data-i18n="shareCopy">نسخ الروابط</span>
+        </button>
+      </div>
+
+      <p id="share-toast" class="share-toast" hidden></p>
     </div>
   </div>
 

@@ -1279,3 +1279,10 @@ body.light-theme .share-toast {
   border-color: #86efac;
   color: #166534;
 }
+
+/* إخفاء زر تيليجرام على الجوال */
+@media (max-width: 600px) {
+  .share-telegram-btn {
+    display: none !important;
+  }
+}

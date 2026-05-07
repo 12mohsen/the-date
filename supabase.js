@@ -3,9 +3,6 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-// معرّف تطبيق المصدر — يُرسَل مع كل مستخدم جديد لتمييز مصدره
-const APP_ORIGIN = "days_counter";
-
 // توليد اقتراحات أسماء بديلة قريبة
 function generateUsernameSuggestions(base) {
   const year = String(new Date().getFullYear());
@@ -58,18 +55,13 @@ async function hashPassword(password) {
   return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-// جلب مستخدم من القاعدة (مع التحقق من app_origin)
-async function dbGetUser(username, checkAppOrigin = false) {
-  let query = supabaseClient
+// جلب مستخدم من القاعدة
+async function dbGetUser(username) {
+  const { data, error } = await supabaseClient
     .from("users")
     .select("*")
-    .eq("username", username);
-
-  if (checkAppOrigin) {
-    query = query.eq("app_origin", APP_ORIGIN);
-  }
-
-  const { data, error } = await query.maybeSingle();
+    .eq("user_id", username)
+    .maybeSingle();
 
   if (error) {
     console.error("Supabase get user error:", error.message);
@@ -80,11 +72,11 @@ async function dbGetUser(username, checkAppOrigin = false) {
 
 // إنشاء مستخدم جديد
 async function dbSignup(username, password, hint) {
-  // التحقق العالمي: الاسم يجب أن يكون غير موجود في أي تطبيق (limit 1 للسماح بتعدد الأسطر بين التطبيقات)
+  // التحقق: الاسم يجب أن يكون غير موجود
   const { data: existingRows } = await supabaseClient
     .from("users")
-    .select("app_origin")
-    .eq("username", username)
+    .select("user_id")
+    .eq("user_id", username)
     .limit(1);
   const existing = existingRows && existingRows.length ? existingRows[0] : null;
   if (existing) {
@@ -100,10 +92,9 @@ async function dbSignup(username, password, hint) {
   const { error } = await supabaseClient
     .from("users")
     .insert([{
-      username,
-      password_hash: passwordHash,
+      user_id: username,
+      pass_hash: passwordHash,
       hint: hint || "",
-      app_origin: APP_ORIGIN,
     }]);
 
   if (error) {
@@ -115,14 +106,14 @@ async function dbSignup(username, password, hint) {
 
 // جلب التلميح فقط (لشاشة نسيت كلمة المرور)
 async function dbGetHint(username) {
-  const user = await dbGetUser(username, true);
+  const user = await dbGetUser(username);
   if (!user) return { exists: false, hint: null };
   return { exists: true, hint: user.hint || "" };
 }
 
 // إعادة تعيين كلمة المرور بالتحقق من التلميح
 async function dbResetPasswordWithHint(username, hintInput, newPassword) {
-  const user = await dbGetUser(username, true);
+  const user = await dbGetUser(username);
   if (!user) return { ok: false, error: "user_not_found" };
   const storedHint = (user.hint || "").trim().toLowerCase();
   const enteredHint = (hintInput || "").trim().toLowerCase();
@@ -132,46 +123,36 @@ async function dbResetPasswordWithHint(username, hintInput, newPassword) {
   const newHash = await hashPassword(newPassword);
   const { error } = await supabaseClient
     .from("users")
-    .update({ password_hash: newHash })
-    .eq("username", username)
-    .eq("app_origin", APP_ORIGIN);
+    .update({ pass_hash: newHash })
+    .eq("user_id", username);
   if (error) return { ok: false, error: error.message };
   return { ok: true };
 }
 
 // تغيير كلمة المرور (المستخدم مسجّل دخوله)
 async function dbChangePassword(username, oldPassword, newPassword) {
-  const user = await dbGetUser(username, true);
+  const user = await dbGetUser(username);
   if (!user) return { ok: false, error: "user_not_found" };
   const oldHash = await hashPassword(oldPassword);
-  if (oldHash !== user.password_hash) return { ok: false, error: "wrong_old_password" };
+  if (oldHash !== user.pass_hash) return { ok: false, error: "wrong_old_password" };
   const newHash = await hashPassword(newPassword);
   const { error } = await supabaseClient
     .from("users")
-    .update({ password_hash: newHash })
-    .eq("username", username)
-    .eq("app_origin", APP_ORIGIN);
+    .update({ pass_hash: newHash })
+    .eq("user_id", username);
   if (error) return { ok: false, error: error.message };
   return { ok: true };
 }
 
-// تسجيل الدخول: يرجع { ok, exists, hint, otherApp }
+// تسجيل الدخول: يرجع { ok, exists, hint }
 async function dbLogin(username, password) {
-  // ابحث فقط ضمن مستخدمي هذا التطبيق
-  const user = await dbGetUser(username, true);
+  const user = await dbGetUser(username);
   if (!user) {
-    // تحقق إن كان الاسم مسجلاً في تطبيق آخر لإرشاد المستخدم
-    const { data: otherRows } = await supabaseClient
-      .from("users")
-      .select("app_origin")
-      .eq("username", username)
-      .limit(1);
-    const otherApp = otherRows && otherRows.length ? otherRows[0].app_origin : null;
-    return { ok: false, exists: false, otherApp };
+    return { ok: false, exists: false };
   }
 
   const passwordHash = await hashPassword(password);
-  if (passwordHash !== user.password_hash) {
+  if (passwordHash !== user.pass_hash) {
     return { ok: false, exists: true, hint: user.hint || "" };
   }
 

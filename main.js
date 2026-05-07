@@ -1336,7 +1336,7 @@ dbKeepAlivePing();
     const savedUsername = readSession();
     if (savedUsername) {
       // تحقّق من أن المستخدم ما زال موجوداً في القاعدة قبل استعادة الجلسة
-      const user = await dbGetUser(savedUsername, true);
+      const user = await dbGetUser(savedUsername);
       if (user) {
         restoreState();
         await startAppForUser(savedUsername);

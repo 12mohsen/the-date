@@ -3,6 +3,9 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+// معرّف التطبيق — يُحفظ في عمود created_from عند إنشاء حساب جديد
+const APP_ORIGIN = "days_counter";
+
 // توليد اقتراحات أسماء بديلة قريبة
 function generateUsernameSuggestions(base) {
   const year = String(new Date().getFullYear());
@@ -95,6 +98,7 @@ async function dbSignup(username, password, hint) {
       user_id: username,
       pass_hash: passwordHash,
       hint: hint || "",
+      created_from: APP_ORIGIN,
     }]);
 
   if (error) {

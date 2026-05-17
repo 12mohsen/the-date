@@ -114,8 +114,32 @@
         </div>
 
         <div class="field-group single-date-group">
-          <div class="date-input-wrapper" id="single-date-wrapper">
-            <input type="date" id="single-date" />
+          <div class="dp-wrapper" id="single-date-wrapper">
+            <!-- العرض الرئيسي: انقر لفتح التقويم -->
+            <div class="dp-display" id="dp-display" role="button" tabindex="0">
+              <span id="dp-display-text">اختر تاريخاً</span>
+              <span class="dp-cal-icon">📅</span>
+            </div>
+            <!-- حقل الكتابة الاختيارية -->
+            <input type="text" id="dp-manual-input" class="dp-manual-input"
+                   placeholder="أو اكتب: يوم/شهر/سنة"
+                   dir="ltr" autocomplete="off" inputmode="numeric" />
+            <!-- نافذة التقويم المنبثقة -->
+            <div class="dp-popup" id="dp-popup" hidden>
+              <div class="dp-header">
+                <button class="dp-nav-btn" id="dp-prev" type="button">&#8249;</button>
+                <div class="dp-title-row">
+                  <span id="dp-month-label" class="dp-month-label"></span>
+                  <input type="number" id="dp-year-input" class="dp-year-input"
+                         min="1900" max="2100" />
+                </div>
+                <button class="dp-nav-btn" id="dp-next" type="button">&#8250;</button>
+              </div>
+              <div class="dp-days-header" id="dp-days-header"></div>
+              <div class="dp-grid" id="dp-grid"></div>
+            </div>
+            <!-- الحقل الأصلي المخفي — تستخدمه بقية الكود كما هو -->
+            <input type="date" id="single-date" hidden />
           </div>
         </div>
 

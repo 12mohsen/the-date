@@ -1286,3 +1286,30 @@ body.light-theme .share-toast {
     display: none !important;
   }
 }
+
+/* ════════════════════════════════════════════════
+   منتقي التاريخ المخصص (Custom DatePicker)
+   ════════════════════════════════════════════════ */
+.dp-wrapper { position: relative; width: 100%; }
+.dp-display { display:flex; align-items:center; justify-content:space-between; background:#020617; border:1px solid #334155; border-radius:10px; padding:10px 14px; cursor:pointer; font-size:.95rem; color:#e5e7eb; user-select:none; transition:border-color .2s; }
+.dp-display:hover,.dp-display:focus { border-color:#22c55e; outline:none; }
+.dp-cal-icon { font-size:1.1rem; }
+.dp-manual-input { width:100%; margin-top:6px; background:#020617; border:1px solid #1f2937; border-radius:8px; padding:8px 12px; font-size:.88rem; color:#9ca3af; outline:none; box-sizing:border-box; text-align:center; direction:ltr; }
+.dp-manual-input:focus { border-color:#334155; color:#e5e7eb; }
+.dp-manual-input::placeholder { color:#374151; }
+.dp-popup { position:absolute; top:calc(100% + 4px); right:0; left:0; background:#0f172a; border:1px solid #1e293b; border-radius:14px; padding:12px; z-index:9999; box-shadow:0 8px 32px rgba(0,0,0,.6); }
+.dp-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
+.dp-nav-btn { background:#1e293b; border:none; border-radius:8px; color:#e5e7eb; font-size:1.4rem; line-height:1; width:34px; height:34px; cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.dp-nav-btn:hover { background:#334155; }
+.dp-title-row { display:flex; align-items:center; gap:8px; }
+.dp-month-label { color:#e5e7eb; font-size:.92rem; font-weight:600; min-width:60px; text-align:center; }
+.dp-year-input { width:68px; background:#1e293b; border:1px solid #334155; border-radius:6px; color:#22c55e; font-size:.88rem; padding:3px 6px; text-align:center; outline:none; }
+.dp-year-input::-webkit-inner-spin-button { opacity:1; }
+.dp-days-header { display:grid; grid-template-columns:repeat(7,1fr); margin-bottom:2px; }
+.dp-day-name { text-align:center; font-size:.72rem; color:#6b7280; padding:3px 0; }
+.dp-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:2px; }
+.dp-cell { text-align:center; padding:5px 2px; border-radius:6px; font-size:.82rem; cursor:default; min-height:28px; display:flex; align-items:center; justify-content:center; }
+.dp-day { color:#d1d5db; cursor:pointer; }
+.dp-day:hover { background:#1e293b; }
+.dp-today { color:#22c55e; font-weight:700; }
+.dp-selected { background:#22c55e !important; color:#000 !important; font-weight:700; }

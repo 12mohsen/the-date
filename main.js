@@ -124,6 +124,7 @@ function setTodayIfEmpty() {
   const mm = String(today.getMonth() + 1).padStart(2, "0");
   const dd = String(today.getDate()).padStart(2, "0");
   singleDateInput.value = `${yyyy}-${mm}-${dd}`;
+  singleDateInput.dispatchEvent(new Event("change", { bubbles: true }));
 }
 
 function parseDate(input) {
@@ -225,9 +226,10 @@ function formatYearsAndDays(days) {
 
 // ─────────────────────────────────────────────────────
 //  تنسيق الأيام بصيغة "تعادل X شهر و Y يوم من أصل 9 أشهر"
-//  الشهر = 30 يوم تقريباً — النص الأخضر في كل مكان (ديناميكي)
+//  الشهر = 30 يوم تقريباً — يرجع HTML: أخضر للمتبقي، ذهبي للإجمالي
 // ─────────────────────────────────────────────────────
 function formatEquivDynamic(remainDays, totalDays) {
+  // تنسيق المتبقي: شهور وأيام
   function toMonthsDays(d) {
     const n = Math.abs(Math.round(d));
     if (n === 0) return `0 ${t("dayUnit")}`;
@@ -238,13 +240,45 @@ function formatEquivDynamic(remainDays, totalDays) {
     if (days   > 0) parts.push(`${days} ${t("dayUnit")}`);
     return parts.join(` ${t("and")} `);
   }
-  const rem = Math.abs(remainDays || 0);
-  const tot = Math.abs(totalDays  || 0);
+  // تنسيق الإجمالي: يستخرج السنوات متى توفّرت (حتى مع أيام/أشهر متبقية)
+  function toTotalLabel(d) {
+    const n = Math.abs(Math.round(d));
+    if (n === 0) return `0 ${t("dayUnit")}`;
+    const totalMonths = Math.floor(n / 30);
+    const remDays     = n % 30;
+    const years       = Math.floor(totalMonths / 12);
+    const remMonths   = totalMonths % 12;
+    const isEn = (typeof getLanguage === "function" && getLanguage() === "en");
+    if (years >= 1) {
+      // صياغة السنوات
+      let yearLabel;
+      if (isEn) {
+        yearLabel = years === 1 ? "1 year" : `${years} years`;
+      } else {
+        if (years === 1)      yearLabel = "سنة";
+        else if (years === 2) yearLabel = "سنتين";
+        else if (years <= 10) yearLabel = `${years} سنوات`;
+        else                  yearLabel = `${years} سنة`;
+      }
+      const parts = [yearLabel];
+      if (remMonths > 0) parts.push(`${remMonths} ${t("monthUnit")}`);
+      if (remDays   > 0) parts.push(`${remDays} ${t("dayUnit")}`);
+      return parts.join(` ${t("and")} `);
+    }
+    // أقل من سنة: شهور وأيام
+    return toMonthsDays(n);
+  }
+  const rem = Math.abs(Math.round(remainDays || 0));
+  const tot = Math.abs(Math.round(totalDays  || 0));
   if (rem === 0 && tot === 0) return "";
+  // إذا تساوى المتبقي والإجمالي (وضع "منذ") — نعرض القيمة المحوّلة فقط بدون تكرار
+  if (rem === tot) {
+    return `<span class="details-gold">${toTotalLabel(tot)}</span>`;
+  }
   const isEn = (typeof getLanguage === "function" && getLanguage() === "en");
-  return isEn
-    ? `Equivalent to ${toMonthsDays(rem)} out of ${toMonthsDays(tot)}`
-    : `تعادل ${toMonthsDays(rem)} من أصل ${toMonthsDays(tot)}`;
+  const equivWord = isEn ? "Equivalent to" : "تعادل";
+  const ofWord    = isEn ? "out of"        : "من أصل";
+  return `<span class="details-equivalent">${equivWord} ${toMonthsDays(rem)}</span> <span class="details-gold">${ofWord} ${toTotalLabel(tot)}</span>`;
 }
 
 function saveState(extra = {}) {
@@ -252,7 +286,7 @@ function saveState(extra = {}) {
     mode,
     resultVisible: !resultCard.hidden,
     resultText: resultText.innerHTML,
-    resultEquivalent: resultEquivalent.textContent,
+    resultEquivalent: resultEquivalent.innerHTML,
     resultDetails: resultDetails.innerHTML,
     ...extra,
   };
@@ -607,7 +641,7 @@ function renderSavedEntries() {
         if (_equivFull) {
           const _fromFmt = formatBothCalendars(_fromDate);
           const _toFmt   = formatBothCalendars(_toDate);
-          dynamicSummaryLine = `<span class="details-gold">منذ ${_fromFmt} حتى ${_toFmt}</span> <span class="details-equivalent">${_equivFull}</span>`;
+          dynamicSummaryLine = `<span class="details-gold">منذ ${_fromFmt} حتى ${_toFmt}</span> ${_equivFull}`;
         }
       }
     }
@@ -714,6 +748,43 @@ function renderSavedEntries() {
     });
 
     right.appendChild(deleteBtn);
+
+    // ── زر النسخ ──
+    const copyBtn = document.createElement("button");
+    copyBtn.className = "toggle-btn";
+    copyBtn.textContent = t("copyBtn");
+    copyBtn.addEventListener("click", () => {
+      // بناء نص النسخ من أجزاء المدة (بدون وسوم HTML)
+      function stripHtml(html) {
+        const tmp = document.createElement("div");
+        tmp.innerHTML = html || "";
+        return tmp.textContent.trim();
+      }
+      const lines = [];
+      if (entry.note) lines.push(entry.note);
+      if (dynamicMainLine)   lines.push(stripHtml(dynamicMainLine) + " — " + stripHtml(dynamicEquivLine));
+      else if (dynamicEquivLine) lines.push(stripHtml(dynamicEquivLine));
+      const det = dynamicDetailsLine || entry.detailsText || "";
+      if (det) lines.push(stripHtml(det));
+      if (dynamicSummaryLine) lines.push(stripHtml(dynamicSummaryLine));
+      const textToCopy = lines.join("\n");
+      navigator.clipboard.writeText(textToCopy).then(() => {
+        copyBtn.textContent = t("copiedBtn");
+        setTimeout(() => { copyBtn.textContent = t("copyBtn"); }, 2000);
+      }).catch(() => {
+        // fallback للمتصفحات القديمة
+        const ta = document.createElement("textarea");
+        ta.value = textToCopy;
+        ta.style.position = "fixed"; ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+        copyBtn.textContent = t("copiedBtn");
+        setTimeout(() => { copyBtn.textContent = t("copyBtn"); }, 2000);
+      });
+    });
+    right.appendChild(copyBtn);
 
     const moveUpBtn = document.createElement("button");
     moveUpBtn.className = "toggle-btn";
@@ -860,7 +931,7 @@ function calculate() {
       isRemaining = isFutureTarget;
     }
     resultText.innerHTML = `<span class="result-verb-red">${verb}</span> ${abs} ${t("dayUnit")}`;
-    resultEquivalent.textContent = formatEquivDynamic(abs, abs);
+    resultEquivalent.innerHTML = formatEquivDynamic(abs, abs);
 
     if (mode === "since") {
       resultDetails.innerHTML = t("joinSincePast", abs, formatBothCalendars(target), formatBothCalendars(today));
@@ -893,7 +964,7 @@ function calculate() {
           // eqBetween تبدأ بـ "تعادل X من أصل Y" مباشرة
           const eqText = eqBetween || `تعادل ${absBetween} ${t("dayUnit")}`;
 
-          details += `<br><span class="details-gold">منذ ${fromText} حتى ${toText}</span> <span class=\"details-equivalent\">${eqText}</span>`;
+          details += `<br><span class="details-gold">منذ ${fromText} حتى ${toText}</span> ${eqText}`;
         }
       }
 
@@ -1475,17 +1546,7 @@ if (singleDateInput) {
   singleDateInput.addEventListener("change", calculate);
 }
 
-if (singleDateWrapper && singleDateInput) {
-  singleDateWrapper.addEventListener("click", (e) => {
-    // منع النقرات على عناصر داخلية أخرى من تعطيل السلوك
-    if (typeof singleDateInput.showPicker === "function") {
-      singleDateInput.showPicker();
-    } else {
-      singleDateInput.focus();
-      singleDateInput.click();
-    }
-  });
-}
+// [dp] تم استبدال معالج النقر بالتقويم المخصص
 
 if (filterButtons && filterButtons.length) {
   filterButtons.forEach((btn) => {
@@ -1685,12 +1746,12 @@ saveEntryBtn.addEventListener("click", () => {
     // السطر الأول: "مر / بقي X يوم" مع اللون الأحمر
     mainText: daysHtml,
     // السطر الثاني: "ما يعادل ..."
-    equivalentText: resultEquivalent.textContent || "",
+    equivalentText: resultEquivalent.innerHTML || "",
     // السطر الثالث: تفاصيل من/إلى
     detailsText: (resultDetails.innerHTML || "") + (mode === "until" && lastSinceBaseRaw ? `<!--since_base:${lastSinceBaseRaw}-->` : ""),
     sinceBaseRaw: (mode === "until" && lastSinceBaseRaw) ? lastSinceBaseRaw : "",
     // حقل قديم للإبقاء على التوافق مع المدد الأقدم
-    remainingText: daysHtml || resultEquivalent.textContent,
+    remainingText: daysHtml || resultEquivalent.innerHTML,
     remainingDays: lastDaysValue,
     remainingIsFuture: lastIsRemaining,
     targetDate: lastTargetGregorian,
@@ -1730,3 +1791,175 @@ saveEntryBtn.addEventListener("click", () => {
     resultDetails: "",
   });
 });
+
+// ════════════════════════════════════════════════════════
+//  Custom DatePicker — يستخدم #single-date كقيمة مخفية
+// ════════════════════════════════════════════════════════
+(function initDatePicker() {
+  const hiddenInput  = document.getElementById("single-date");
+  const display      = document.getElementById("dp-display");
+  const displayText  = document.getElementById("dp-display-text");
+  const manualInput  = document.getElementById("dp-manual-input");
+  const popup        = document.getElementById("dp-popup");
+  const prevBtn      = document.getElementById("dp-prev");
+  const nextBtn      = document.getElementById("dp-next");
+  const monthLabel   = document.getElementById("dp-month-label");
+  const yearInput    = document.getElementById("dp-year-input");
+  const daysHeader   = document.getElementById("dp-days-header");
+  const grid         = document.getElementById("dp-grid");
+  if (!hiddenInput || !display || !popup) return;
+
+  const now = new Date();
+  let viewYear  = now.getFullYear();
+  let viewMonth = now.getMonth();
+  let selected  = null; // Date | null
+
+  const MONTHS_AR = ["يناير","فبراير","مارس","أبريل","مايو","يونيو",
+                     "يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
+  const MONTHS_EN = ["Jan","Feb","Mar","Apr","May","Jun",
+                     "Jul","Aug","Sep","Oct","Nov","Dec"];
+  const WDAYS_AR  = ["أح","اث","ثل","أر","خم","جم","سب"];
+  const WDAYS_EN  = ["Su","Mo","Tu","We","Th","Fr","Sa"];
+
+  function isEn() { return typeof getLanguage==="function" && getLanguage()==="en"; }
+
+  function fmtDisplay(d) {
+    if (!d) return isEn() ? "Select a date" : "اختر تاريخاً";
+    const dd = String(d.getDate()).padStart(2,"0");
+    const mm = String(d.getMonth()+1).padStart(2,"0");
+    const yy = d.getFullYear();
+    return isEn() ? `${yy}/${mm}/${dd}` : `${dd}/${mm}/${yy}`;
+  }
+
+  function setSelected(date) {
+    selected = date;
+    displayText.textContent = fmtDisplay(date);
+    manualInput.value = fmtDisplay(date);
+    const yy = date.getFullYear();
+    const mm = String(date.getMonth()+1).padStart(2,"0");
+    const dd = String(date.getDate()).padStart(2,"0");
+    hiddenInput.value = `${yy}-${mm}-${dd}`;
+    hiddenInput.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+
+  function render() {
+    const months = isEn() ? MONTHS_EN : MONTHS_AR;
+    const wdays  = isEn() ? WDAYS_EN  : WDAYS_AR;
+    monthLabel.textContent = months[viewMonth];
+    yearInput.value = viewYear;
+
+    daysHeader.innerHTML = wdays.map(d => `<div class="dp-day-name">${d}</div>`).join("");
+
+    const today = new Date(); today.setHours(0,0,0,0);
+    const firstDow  = new Date(viewYear, viewMonth, 1).getDay();
+    const totalDays = new Date(viewYear, viewMonth+1, 0).getDate();
+    let html = "";
+    for (let i=0; i<firstDow; i++) html += `<div class="dp-cell dp-empty"></div>`;
+    for (let day=1; day<=totalDays; day++) {
+      const d   = new Date(viewYear, viewMonth, day);
+      const isT = d.getTime()===today.getTime();
+      const isS = selected && d.getTime()===selected.getTime();
+      const pad = String(day).padStart(2,"0");
+      const mpad= String(viewMonth+1).padStart(2,"0");
+      html += `<div class="dp-cell dp-day${isT?" dp-today":""}${isS?" dp-selected":""}"
+                    data-iso="${viewYear}-${mpad}-${pad}">${day}</div>`;
+    }
+    grid.innerHTML = html;
+    grid.querySelectorAll(".dp-day").forEach(cell => {
+      cell.addEventListener("click", () => {
+        const [y,m,d] = cell.dataset.iso.split("-").map(Number);
+        setSelected(new Date(y, m-1, d));
+        popup.hidden = true;
+      });
+    });
+  }
+
+  function openPopup() {
+    if (selected) { viewYear=selected.getFullYear(); viewMonth=selected.getMonth(); }
+    popup.hidden = false;
+    render();
+  }
+
+  // فتح/إغلاق عند النقر على العرض
+  display.addEventListener("click", e => { e.stopPropagation(); popup.hidden?openPopup():(popup.hidden=true); });
+  display.addEventListener("keydown", e => { if(e.key==="Enter"||e.key===" "){ e.preventDefault(); openPopup(); } });
+
+  // الإغلاق عند النقر خارجاً
+  document.addEventListener("click", e => {
+    if (!e.target.closest("#single-date-wrapper")) popup.hidden = true;
+  });
+
+  prevBtn.addEventListener("click", e => {
+    e.stopPropagation();
+    if (--viewMonth < 0) { viewMonth=11; viewYear--; }
+    render();
+  });
+  nextBtn.addEventListener("click", e => {
+    e.stopPropagation();
+    if (++viewMonth > 11) { viewMonth=0; viewYear++; }
+    render();
+  });
+
+  yearInput.addEventListener("click", e => e.stopPropagation());
+  yearInput.addEventListener("change", () => {
+    const y = parseInt(yearInput.value);
+    if (y>=1900 && y<=2100) { viewYear=y; render(); }
+  });
+  yearInput.addEventListener("keydown", e => {
+    e.stopPropagation();
+    if (e.key==="Enter") { yearInput.blur(); }
+  });
+
+  // الكتابة اليدوية: يقبل DD/MM/YYYY أو YYYY-MM-DD أو YYYY/MM/DD
+  manualInput.addEventListener("input", () => {
+    // تحويل أرقام عربية-هندية
+    const raw = manualInput.value.replace(/[٠-٩]/g, d => d.charCodeAt(0)-1632).trim();
+    let parsed = null;
+    let m;
+    // DD/MM/YYYY
+    m = raw.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})$/);
+    if (m) { const dt=new Date(+m[3],+m[2]-1,+m[1]); if(!isNaN(dt)&&dt.getMonth()===+m[2]-1) parsed=dt; }
+    // YYYY/MM/DD or YYYY-MM-DD
+    if (!parsed) {
+      m = raw.match(/^(\d{4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})$/);
+      if (m) { const dt=new Date(+m[1],+m[2]-1,+m[3]); if(!isNaN(dt)&&dt.getMonth()===+m[2]-1) parsed=dt; }
+    }
+    if (parsed) {
+      selected=parsed; viewYear=parsed.getFullYear(); viewMonth=parsed.getMonth();
+      displayText.textContent = fmtDisplay(parsed);
+      const yy=parsed.getFullYear(), mm=String(parsed.getMonth()+1).padStart(2,"0"), dd=String(parsed.getDate()).padStart(2,"0");
+      hiddenInput.value=`${yy}-${mm}-${dd}`;
+      hiddenInput.dispatchEvent(new Event("change",{bubbles:true}));
+      if(!popup.hidden) render();
+    }
+  });
+  manualInput.addEventListener("click", e => e.stopPropagation());
+  manualInput.addEventListener("focus", () => { openPopup(); });
+
+  // مزامنة عكسية: عندما يتغير hiddenInput من خارج المنتقي (مثل setTodayIfEmpty)
+  hiddenInput.addEventListener("change", () => {
+    if (!hiddenInput.value) {
+      selected=null;
+      displayText.textContent = isEn()?"Select a date":"اختر تاريخاً";
+      manualInput.value="";
+      return;
+    }
+    const [y,m,d] = hiddenInput.value.split("-").map(Number);
+    const dt = new Date(y,m-1,d);
+    if (!isNaN(dt.getTime())) {
+      // تحديث العرض فقط (تجنب حلقة لا نهائية)
+      if (!selected || selected.getTime()!==dt.getTime()) {
+        selected=dt;
+        displayText.textContent = fmtDisplay(dt);
+        manualInput.value = fmtDisplay(dt);
+      }
+    }
+  });
+
+  // عرض أولي إن كان hiddenInput يحمل قيمة (مثلاً بعد setTodayIfEmpty)
+  if (hiddenInput.value) {
+    const [y,m,d] = hiddenInput.value.split("-").map(Number);
+    const dt = new Date(y,m-1,d);
+    if (!isNaN(dt.getTime())) { selected=dt; displayText.textContent=fmtDisplay(dt); manualInput.value=fmtDisplay(dt); }
+  }
+})();

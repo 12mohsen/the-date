@@ -177,6 +177,7 @@
             </select>
             <button id="save-entry-btn" class="secondary-btn" data-i18n="saveEntryBtn">حفظ المدة الحالية في الجدول</button>
             <button id="trash-btn" class="secondary-btn" type="button" data-i18n="trashBtn">🗑 سلة المحذوفات</button>
+            <button id="notif-btn" class="secondary-btn notif-off-btn" type="button">🔕 التذكيرات</button>
           </div>
           <div class="saved-filters">
             <span class="saved-filters-label" data-i18n="filterByImportance">تصفية حسب الأهمية:</span>
@@ -186,6 +187,9 @@
             <button class="filter-btn" data-importance="very-important" id="filter-very-important" data-i18n="filterVeryImportant">مهم جدًا</button>
           </div>
         </div>
+
+        <!-- شريط المواعيد ≤3 أيام — يظهر ديناميكياً -->
+        <div id="near-deadline-bar" class="near-deadline-bar" hidden></div>
 
         <div class="saved-table-wrapper">
           <div id="saved-list" class="saved-list">

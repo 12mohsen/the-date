@@ -407,6 +407,7 @@ function renderSavedEntries() {
   visibleEntries.forEach((entry, index) => {
     const item = document.createElement("div");
     item.className = "saved-item";
+    item.id = `entry-item-${entry.id}`;
     item.draggable = true;
     item.dataset.entryId = String(entry.id);
 
@@ -691,6 +692,25 @@ function renderSavedEntries() {
     if (stars.innerHTML) {
       titleRow.appendChild(stars);
     }
+    // ── أيقونة التحذير للمواعيد ≤ 3 أيام ──
+    if (entry.modeAtSave === "until" && !entry.hidden) {
+      const _t = entry.targetDateRaw ? new Date(entry.targetDateRaw + "T00:00:00") : null;
+      if (_t && !isNaN(_t)) {
+        const _d = diffInDays(today, _t);
+        if (_d >= 0 && _d <= 3) {
+          const warnIcon = document.createElement("button");
+          warnIcon.className = "entry-warn-icon";
+          warnIcon.type = "button";
+          warnIcon.title = _d === 0 ? t("notifBodyToday").replace("{name}","") : `${_d} ${t("dayUnit")}`;
+          warnIcon.textContent = _d === 0 ? "⚡" : "⚠";
+          warnIcon.addEventListener("click", (ev) => {
+            ev.stopPropagation();
+            scrollToEntry(entry.id);
+          });
+          titleRow.appendChild(warnIcon);
+        }
+      }
+    }
 
     const remainingLine = document.createElement("div");
     remainingLine.className = "saved-item-remaining";
@@ -830,6 +850,33 @@ function renderSavedEntries() {
     savedCountEl.textContent = count
       ? t("savedCount", count)
       : t("noSaved");
+  }
+
+  // ── شريط المواعيد ≤ 3 أيام ──
+  const ndBar = document.getElementById("near-deadline-bar");
+  if (ndBar) {
+    const todayForBar = new Date(); todayForBar.setHours(0,0,0,0);
+    const nearItems = savedEntries.filter(e => {
+      if (e.modeAtSave !== "until" || e.hidden || !e.targetDateRaw) return false;
+      const tgt = new Date(e.targetDateRaw + "T00:00:00");
+      if (isNaN(tgt)) return false;
+      const d = diffInDays(todayForBar, tgt);
+      return d >= 0 && d <= 3;
+    });
+    if (nearItems.length > 0) {
+      ndBar.hidden = false;
+      ndBar.innerHTML = `<span class="nd-label">${t("ndBarLabel")}</span>` +
+        nearItems.map(e => {
+          const tgt = new Date(e.targetDateRaw + "T00:00:00");
+          const d   = diffInDays(todayForBar, tgt);
+          const daysTxt = d === 0
+            ? `<span class="nd-days">${t("notifBodyToday").replace("{name}","")}</span>`
+            : `<span class="nd-days">${d} ${t("dayUnit")}</span>`;
+          return `<button class="nd-chip" onclick="scrollToEntry(${e.id})">${e.note} ${daysTxt}</button>`;
+        }).join("");
+    } else {
+      ndBar.hidden = true;
+    }
   }
 }
 
@@ -1962,4 +2009,136 @@ saveEntryBtn.addEventListener("click", () => {
     const dt = new Date(y,m-1,d);
     if (!isNaN(dt.getTime())) { selected=dt; displayText.textContent=fmtDisplay(dt); manualInput.value=fmtDisplay(dt); }
   }
+})();
+
+// ════════════════════════════════════════════════════════
+//  نظام التذكيرات (Notifications)
+// ════════════════════════════════════════════════════════
+
+/** التمرير إلى مدة محددة في القائمة مع وميض التمييز */
+function scrollToEntry(id) {
+  const el = document.getElementById(`entry-item-${id}`);
+  if (!el) return;
+  el.scrollIntoView({ behavior: "smooth", block: "center" });
+  el.classList.remove("nd-flash");
+  void el.offsetWidth; // إعادة تشغيل الأنيميشن
+  el.classList.add("nd-flash");
+  setTimeout(() => el.classList.remove("nd-flash"), 2000);
+}
+
+/** قراءة إعدادات التذكيرات */
+function getNotifPrefs() {
+  try { return JSON.parse(localStorage.getItem("dayCounterNotif") || "{}"); }
+  catch { return {}; }
+}
+
+/** حفظ إعدادات التذكيرات */
+function setNotifPrefs(prefs) {
+  localStorage.setItem("dayCounterNotif", JSON.stringify(prefs));
+}
+
+/** تحديث مظهر زر التذكيرات */
+function refreshNotifBtn() {
+  const btn = document.getElementById("notif-btn");
+  if (!btn) return;
+  const prefs = getNotifPrefs();
+  if (prefs.enabled) {
+    btn.textContent = t("notifBtnOn");
+    btn.className = btn.className.replace("notif-off-btn","") + " notif-on-btn";
+  } else {
+    btn.textContent = t("notifBtnOff");
+    btn.className = btn.className.replace("notif-on-btn","") + " notif-off-btn";
+  }
+}
+
+/** إرسال إشعار واحد */
+function sendOneNotif(title, body, tag) {
+  if (!("Notification" in window) || Notification.permission !== "granted") return;
+  try {
+    const n = new Notification(title, { body, tag, icon: "سنبله.png" });
+    n.onclick = () => { window.focus(); n.close(); };
+  } catch (e) { console.warn("Notification error:", e); }
+}
+
+/** فحص المدد وإرسال التذكيرات إن لزم */
+function checkAndNotify() {
+  const prefs = getNotifPrefs();
+  if (!prefs.enabled) return;
+  if (!("Notification" in window) || Notification.permission !== "granted") return;
+
+  const today = new Date(); today.setHours(0,0,0,0);
+  const todayStr = today.toISOString().split("T")[0];
+  if (prefs.lastNotifDate === todayStr) return; // أُرسل اليوم بالفعل
+
+  const near = (typeof savedEntries !== "undefined" ? savedEntries : []).filter(e => {
+    if (e.modeAtSave !== "until" || e.hidden || !e.targetDateRaw) return false;
+    const tgt = new Date(e.targetDateRaw + "T00:00:00");
+    if (isNaN(tgt)) return false;
+    const d = diffInDays(today, tgt);
+    return d >= 0 && d <= 3;
+  });
+
+  if (near.length === 0) return;
+
+  near.forEach(e => {
+    const tgt  = new Date(e.targetDateRaw + "T00:00:00");
+    const days = diffInDays(today, tgt);
+    const body = days === 0
+      ? t("notifBodyToday").replace("{name}", e.note)
+      : t("notifBodyDays").replace("{n}", days).replace("{name}", e.note);
+    sendOneNotif(t("notifReminderTitle"), body, `entry-notif-${e.id}`);
+  });
+
+  prefs.lastNotifDate = todayStr;
+  setNotifPrefs(prefs);
+}
+
+/** تهيئة زر التذكيرات */
+function initNotifButton() {
+  const btn = document.getElementById("notif-btn");
+  if (!btn) return;
+  refreshNotifBtn();
+
+  btn.addEventListener("click", async () => {
+    const prefs = getNotifPrefs();
+    if (prefs.enabled) {
+      // إيقاف التذكيرات
+      prefs.enabled = false;
+      setNotifPrefs(prefs);
+      refreshNotifBtn();
+      return;
+    }
+    // تشغيل التذكيرات — نطلب الإذن أولاً
+    if (!("Notification" in window)) {
+      alert("المتصفح لا يدعم الإشعارات");
+      return;
+    }
+    if (Notification.permission === "denied") {
+      alert(t("notifPermDenied"));
+      return;
+    }
+    const perm = Notification.permission === "granted"
+      ? "granted"
+      : await Notification.requestPermission();
+    if (perm === "granted") {
+      prefs.enabled = true;
+      prefs.lastNotifDate = null; // أعد الإرسال
+      setNotifPrefs(prefs);
+      refreshNotifBtn();
+      checkAndNotify();
+    } else {
+      alert(t("notifPermDenied"));
+    }
+  });
+}
+
+// تشغيل الفحص عند تحميل الصفحة (بعد جلب المدد)
+// يُستدعى من dbFetchEntries عبر setTimeout
+(function scheduleNotifCheck() {
+  setTimeout(() => {
+    initNotifButton();
+    checkAndNotify();
+    // فحص دوري كل ساعة
+    setInterval(checkAndNotify, 60 * 60 * 1000);
+  }, 3000);
 })();

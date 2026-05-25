@@ -241,15 +241,16 @@ function formatEquivDynamic(remainDays, totalDays) {
     return parts.join(` ${t("and")} `);
   }
   // تنسيق الإجمالي: يستخرج السنوات متى توفّرت (حتى مع أيام/أشهر متبقية)
+  // السنة = 365 يوم، ثم الباقي يُقسم على 30 يوم/شهر (متوافق مع formatYearsAndDays)
   function toTotalLabel(d) {
     const n = Math.abs(Math.round(d));
     if (n === 0) return `0 ${t("dayUnit")}`;
-    const totalMonths = Math.floor(n / 30);
-    const remDays     = n % 30;
-    const years       = Math.floor(totalMonths / 12);
-    const remMonths   = totalMonths % 12;
     const isEn = (typeof getLanguage === "function" && getLanguage() === "en");
-    if (years >= 1) {
+    if (n >= 365) {
+      const years     = Math.floor(n / 365);
+      let rest        = n % 365;
+      const remMonths = Math.floor(rest / 30);
+      const remDays   = rest % 30;
       // صياغة السنوات
       let yearLabel;
       if (isEn) {
@@ -271,14 +272,11 @@ function formatEquivDynamic(remainDays, totalDays) {
   const rem = Math.abs(Math.round(remainDays || 0));
   const tot = Math.abs(Math.round(totalDays  || 0));
   if (rem === 0 && tot === 0) return "";
-  // إذا تساوى المتبقي والإجمالي (وضع "منذ") — نعرض القيمة المحوّلة فقط بدون تكرار
-  if (rem === tot) {
-    return `<span class="details-gold">${toTotalLabel(tot)}</span>`;
-  }
   const isEn = (typeof getLanguage === "function" && getLanguage() === "en");
   const equivWord = isEn ? "Equivalent to" : "تعادل";
   const ofWord    = isEn ? "out of"        : "من أصل";
-  return `<span class="details-equivalent">${equivWord} ${toMonthsDays(rem)}</span> <span class="details-gold">${ofWord} ${toTotalLabel(tot)}</span>`;
+  // دائماً نعرض "تعادل ... من أصل ..." حتى لو تساوى المتبقي والإجمالي
+  return `<span class="details-equivalent">${equivWord} ${toTotalLabel(rem)}</span> <span class="details-gold">${ofWord} ${toTotalLabel(tot)}</span>`;
 }
 
 function saveState(extra = {}) {
@@ -632,9 +630,17 @@ function renderSavedEntries() {
             }
           }
           if (!_fromDate) {
-            // fallback: اليوم كنقطة بداية
-            _fromDate   = today;
-            _equivTotal = _totalForEquiv;
+            // fallback: تاريخ الحفظ من entry.id كنقطة بداية
+            const _entryTs2 = typeof entry.id === "number" ? entry.id : Number(entry.id);
+            if (!isNaN(_entryTs2) && _entryTs2 > 1577836800000 && _entryTs2 < 2524608000000) {
+              const _saveDay2 = new Date(_entryTs2);
+              _saveDay2.setHours(0, 0, 0, 0);
+              _fromDate   = _saveDay2;
+              _equivTotal = Math.abs(diffInDays(_saveDay2, targetForCalc));
+            } else {
+              _fromDate   = today;
+              _equivTotal = _totalForEquiv;
+            }
           }
         }
         const _toDate    = entry.modeAtSave === "since" ? today : targetForCalc;
@@ -718,8 +724,14 @@ function renderSavedEntries() {
       remainingLine.textContent = t("hiddenLabel");
     } else {
       const parts = [];
-      if (dynamicMainLine) parts.push(dynamicMainLine);
-      if (dynamicEquivLine) parts.push(dynamicEquivLine);
+      // دمج سطر "متبقي/مر" مع "تعادل" في سطر واحد بفاصل —
+      if (dynamicMainLine && dynamicEquivLine) {
+        parts.push(dynamicMainLine + " — " + dynamicEquivLine);
+      } else if (dynamicMainLine) {
+        parts.push(dynamicMainLine);
+      } else if (dynamicEquivLine) {
+        parts.push(dynamicEquivLine);
+      }
 
       // سطر التفاصيل: نُفضّل النسخة الديناميكية (تُترجم مع اللغة الحالية)
       // ونعود إلى المخزّن فقط إن لم ننجح في حسابه
@@ -978,7 +990,17 @@ function calculate() {
       isRemaining = isFutureTarget;
     }
     resultText.innerHTML = `<span class="result-verb-red">${verb}</span> ${abs} ${t("dayUnit")}`;
-    resultEquivalent.innerHTML = formatEquivDynamic(abs, abs);
+
+    // حساب الإجمالي: إذا كان الوضع "حتى" ويوجد تاريخ أساس "منذ"، نحسب الإجمالي من الأساس
+    let _calcTotal = abs;
+    if (mode === "until" && lastSinceBaseRaw) {
+      const _calcBase = new Date(lastSinceBaseRaw + "T00:00:00");
+      if (!isNaN(_calcBase.getTime())) {
+        const _calcTot = Math.abs(diffInDays(_calcBase, target));
+        if (_calcTot > 0) _calcTotal = _calcTot;
+      }
+    }
+    resultEquivalent.innerHTML = formatEquivDynamic(abs, _calcTotal);
 
     if (mode === "since") {
       resultDetails.innerHTML = t("joinSincePast", abs, formatBothCalendars(target), formatBothCalendars(today));
@@ -1003,7 +1025,7 @@ function calculate() {
         if (!isNaN(base.getTime()) && !isNaN(untilDate.getTime())) {
           const betweenDays = diffInDays(base, untilDate);
           const absBetween = Math.abs(betweenDays);
-          const eqBetween = formatEquivDynamic(absBetween, absBetween);
+          const eqBetween = formatEquivDynamic(abs, absBetween);
 
           const fromText = formatGregorian(base) + " م";
           const toText = formatGregorian(untilDate) + " م";

@@ -1,0 +1,2166 @@
+// ====== روابط المشاركة (يمكن تعديلها يدوياً هنا) ======
+const SHARE_WEB_URL = "https://the-date.netlify.app/";
+const SHARE_APK_URL = "https://www.appcreator24.com/app3836747-8chgli";
+// =====================================================
+
+const singleDateInput = document.getElementById("single-date");
+const singleDateWrapper = document.getElementById("single-date-wrapper");
+const modeSinceBtn = document.getElementById("mode-since");
+const modeUntilBtn = document.getElementById("mode-until");
+const resultCard = document.getElementById("result-card");
+const resultText = document.getElementById("result-text");
+const resultEquivalent = document.getElementById("result-equivalent");
+const resultDetails = document.getElementById("result-details");
+const resultPlaceholder = document.getElementById("result-placeholder");
+const importanceSelect = document.getElementById("importance");
+const saveEntryBtn = document.getElementById("save-entry-btn");
+const savedList = document.getElementById("saved-list");
+const savedCountEl = document.getElementById("saved-count");
+const filterButtons = document.querySelectorAll(".filter-btn");
+const themeToggleBtn = document.getElementById("theme-toggle");
+const langToggleBtn = document.getElementById("lang-toggle");
+const langToggleAuthBtn = document.getElementById("lang-toggle-auth");
+const trashBtn = document.getElementById("trash-btn");
+const trashModal = document.getElementById("trash-modal");
+const trashCloseBtn = document.getElementById("trash-close-btn");
+const trashDeleteAllBtn   = document.getElementById("trash-delete-all-btn");
+const trashSelectAllRow   = document.getElementById("trash-select-all-row");
+const trashSelectAllCb    = document.getElementById("trash-select-all-cb");
+const trashList = document.getElementById("trash-list");
+const STORAGE_KEY = "dayCounterState";
+const STORAGE_SAVED_KEY = "dayCounterSaved";
+const STORAGE_THEME_KEY = "dayCounterTheme";
+const STORAGE_USER_KEY = "dayCounterUser";
+const STORAGE_REMEMBER_KEY = "dayCounterRemember";
+
+// عناصر المصادقة
+const authScreen     = document.getElementById("auth-screen");
+const mainApp        = document.getElementById("main-app");
+const authForm       = document.getElementById("auth-form");
+const authTitle      = document.getElementById("auth-title");
+const authSubtitle   = document.getElementById("auth-subtitle");
+const authUsername   = document.getElementById("auth-username");
+const authPassword   = document.getElementById("auth-password");
+const authHintField  = document.getElementById("auth-hint-field");
+const authHint       = document.getElementById("auth-hint");
+const authSubmitBtn  = document.getElementById("auth-submit-btn");
+const authRemindBtn  = document.getElementById("auth-remind-btn");
+const authHintDisplay= document.getElementById("auth-hint-display");
+const authError      = document.getElementById("auth-error");
+const authToggleText    = document.getElementById("auth-toggle-text");
+const authToggleBtn     = document.getElementById("auth-toggle-btn");
+const authRememberCb    = document.getElementById("auth-remember-cb");
+const authLoginFields   = document.getElementById("auth-login-fields");
+const forgotLinkWrapper = document.getElementById("forgot-link-wrapper");
+const forgotLinkBtn     = document.getElementById("forgot-link-btn");
+const forgotSection     = document.getElementById("forgot-section");
+const forgotUsername    = document.getElementById("forgot-username");
+const forgotShowHintBtn = document.getElementById("forgot-show-hint-btn");
+const forgotHintDisplay = document.getElementById("forgot-hint-display");
+const forgotHintVerify  = document.getElementById("forgot-hint-verify");
+const forgotNewPassword = document.getElementById("forgot-new-password");
+const backToLoginBtn    = document.getElementById("back-to-login-btn");
+const userNameEl        = document.getElementById("user-name");
+const logoutBtn         = document.getElementById("logout-btn");
+const changePwBtn       = document.getElementById("change-pw-btn");
+const changePwModal     = document.getElementById("change-pw-modal");
+const changePwCloseBtn  = document.getElementById("change-pw-close-btn");
+const changePwForm      = document.getElementById("change-pw-form");
+const changePwOld       = document.getElementById("cp-old");
+const changePwNew       = document.getElementById("cp-new");
+const changePwConfirm   = document.getElementById("cp-confirm");
+const changePwError     = document.getElementById("change-pw-error");
+const changePwSubmitBtn = document.getElementById("change-pw-submit-btn");
+const changePwCancelBtn = document.getElementById("change-pw-cancel-btn");
+
+// عناصر المشاركة
+const shareBtn       = document.getElementById("share-btn");
+const shareModal     = document.getElementById("share-modal");
+const shareCloseBtn  = document.getElementById("share-close-btn");
+const shareWebLink   = document.getElementById("share-web-link");
+const shareApkLink   = document.getElementById("share-apk-link");
+const shareToast     = document.getElementById("share-toast");
+const sharePlatformBtns = document.querySelectorAll(".share-platform-btn");
+
+let authMode = "login"; // login | signup | forgot
+
+let savedEntries = [];
+let mode = "since"; // since | until
+let importanceFilter = "all"; // all | normal | important | very-important
+let lastDaysValue = null; // القيمة العددية للأيام في آخر حساب
+let lastIsRemaining = false; // هل كانت الحالة "بقي" (موعد قادم)
+let lastTargetGregorian = ""; // التاريخ الهدف (ميلادي) لآخر حساب
+let lastSinceBaseGregorian = ""; // آخر تاريخ استُخدم في وضع "منذ التاريخ" (ميلادي)
+let lastSinceBaseRaw = ""; // آخر تاريخ استُخدم في وضع "منذ التاريخ" (قيمة input yyyy-mm-dd)
+
+function applyTheme(theme) {
+  const body = document.body;
+  if (theme === "light") {
+    body.classList.add("light-theme");
+    if (themeToggleBtn) themeToggleBtn.textContent = "☀";
+  } else {
+    body.classList.remove("light-theme");
+    if (themeToggleBtn) themeToggleBtn.textContent = "☾";
+  }
+}
+
+function loadTheme() {
+  try {
+    const stored = localStorage.getItem(STORAGE_THEME_KEY);
+    const theme = stored === "light" ? "light" : "dark";
+    applyTheme(theme);
+  } catch (e) {
+    applyTheme("dark");
+  }
+}
+
+function setTodayIfEmpty() {
+  if (!singleDateInput) return;
+  if (singleDateInput.value) return;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const yyyy = today.getFullYear();
+  const mm = String(today.getMonth() + 1).padStart(2, "0");
+  const dd = String(today.getDate()).padStart(2, "0");
+  singleDateInput.value = `${yyyy}-${mm}-${dd}`;
+  singleDateInput.dispatchEvent(new Event("change", { bubbles: true }));
+}
+
+function parseDate(input) {
+  const value = input.value;
+  if (!value) return null;
+  const date = new Date(value + "T00:00:00");
+  return isNaN(date.getTime()) ? null : date;
+}
+
+function diffInDays(date1, date2) {
+  const msPerDay = 24 * 60 * 60 * 1000;
+  const diff = date2 - date1;
+  return Math.round(diff / msPerDay);
+}
+
+function formatGregorian(date) {
+  const locale = (typeof getLanguage === "function" && getLanguage() === "en") ? "en-GB" : "ar-EG";
+  const fmt = new Intl.DateTimeFormat(locale, {
+    day: "numeric",
+    month: "numeric",
+    year: "numeric",
+  });
+  return fmt.format(date);
+}
+
+// تنسيق ميلادي رقمي بسيط بالشكل: 4/12/2025
+function formatGregorianNumeric(date) {
+  const d = date.getDate();
+  const m = date.getMonth() + 1;
+  const y = date.getFullYear();
+  return `${d}/${m}/${y}`;
+}
+
+function formatHijri(date) {
+  try {
+    const fmt = new Intl.DateTimeFormat("ar-SA-u-ca-islamic", {
+      day: "numeric",
+      month: "numeric",
+      year: "numeric",
+    });
+    return fmt.format(date);
+  } catch (e) {
+    // في حال عدم دعم التقويم الهجري في المتصفح نرجع التاريخ الميلادي فقط
+    return formatGregorian(date);
+  }
+}
+
+function formatBothCalendars(date) {
+  const g = formatGregorian(date);
+  const h = formatHijri(date);
+  const isEn = (typeof getLanguage === "function" && getLanguage() === "en");
+  const gSuffix = isEn ? "" : " م";
+  if (g === h) {
+    return `<span class="date-greg">${g}</span>`;
+  }
+  return `<span class="date-greg">${g}${gSuffix}</span> <span class="date-hijri">(${h})</span>`;
+}
+
+function formatYearsAndDays(days) {
+  const total = Math.abs(days);
+  if (total === 0) return "";
+
+  const parts = [];
+
+  if (total >= 365) {
+    const years = Math.floor(total / 365);
+    let rest = total % 365;
+
+    if (years > 0) {
+      parts.push(`${years} ${t("yearUnit")}`);
+    }
+
+    const months = Math.floor(rest / 30);
+    rest = rest % 30;
+
+    if (months > 0) {
+      parts.push(`${months} ${t("monthUnit")}`);
+    }
+
+    if (rest > 0) {
+      parts.push(`${rest} ${t("dayUnit")}`);
+    }
+  } else {
+    const months = Math.floor(total / 30);
+    const rest = total % 30;
+
+    if (months > 0) {
+      parts.push(`${months} ${t("monthUnit")}`);
+    }
+
+    if (rest > 0) {
+      parts.push(`${rest} ${t("dayUnit")}`);
+    }
+  }
+
+  if (!parts.length) return "";
+  return `${t("equivalentPrefix")} ${parts.join(` ${t("and")} `)}`;
+}
+
+// ─────────────────────────────────────────────────────
+//  تنسيق الأيام بصيغة "تعادل X شهر و Y يوم من أصل 9 أشهر"
+//  الشهر = 30 يوم تقريباً — يرجع HTML: أخضر للمتبقي، ذهبي للإجمالي
+// ─────────────────────────────────────────────────────
+function formatEquivDynamic(remainDays, totalDays) {
+  // تنسيق المتبقي: شهور وأيام
+  function toMonthsDays(d) {
+    const n = Math.abs(Math.round(d));
+    if (n === 0) return `0 ${t("dayUnit")}`;
+    const months = Math.floor(n / 30);
+    const days   = n % 30;
+    const parts  = [];
+    if (months > 0) parts.push(`${months} ${t("monthUnit")}`);
+    if (days   > 0) parts.push(`${days} ${t("dayUnit")}`);
+    return parts.join(` ${t("and")} `);
+  }
+  // تنسيق الإجمالي: يستخرج السنوات متى توفّرت (حتى مع أيام/أشهر متبقية)
+  // السنة = 365 يوم، ثم الباقي يُقسم على 30 يوم/شهر (متوافق مع formatYearsAndDays)
+  function toTotalLabel(d) {
+    const n = Math.abs(Math.round(d));
+    if (n === 0) return `0 ${t("dayUnit")}`;
+    const isEn = (typeof getLanguage === "function" && getLanguage() === "en");
+    if (n >= 365) {
+      const years     = Math.floor(n / 365);
+      let rest        = n % 365;
+      const remMonths = Math.floor(rest / 30);
+      const remDays   = rest % 30;
+      // صياغة السنوات
+      let yearLabel;
+      if (isEn) {
+        yearLabel = years === 1 ? "1 year" : `${years} years`;
+      } else {
+        if (years === 1)      yearLabel = "سنة";
+        else if (years === 2) yearLabel = "سنتين";
+        else if (years <= 10) yearLabel = `${years} سنوات`;
+        else                  yearLabel = `${years} سنة`;
+      }
+      const parts = [yearLabel];
+      if (remMonths > 0) parts.push(`${remMonths} ${t("monthUnit")}`);
+      if (remDays   > 0) parts.push(`${remDays} ${t("dayUnit")}`);
+      return parts.join(` ${t("and")} `);
+    }
+    // أقل من سنة: شهور وأيام
+    return toMonthsDays(n);
+  }
+  const rem = Math.abs(Math.round(remainDays || 0));
+  const tot = Math.abs(Math.round(totalDays  || 0));
+  if (rem === 0 && tot === 0) return "";
+  const isEn = (typeof getLanguage === "function" && getLanguage() === "en");
+  const equivWord = isEn ? "Equivalent to" : "تعادل";
+  const ofWord    = isEn ? "out of"        : "من أصل";
+  // دائماً نعرض "تعادل ... من أصل ..." حتى لو تساوى المتبقي والإجمالي
+  return `<span class="details-equivalent">${equivWord} ${toTotalLabel(rem)}</span> <span class="details-gold">${ofWord} ${toTotalLabel(tot)}</span>`;
+}
+
+function saveState(extra = {}) {
+  const state = {
+    mode,
+    resultVisible: !resultCard.hidden,
+    resultText: resultText.innerHTML,
+    resultEquivalent: resultEquivalent.innerHTML,
+    resultDetails: resultDetails.innerHTML,
+    ...extra,
+  };
+
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch (e) {
+    // تجاهل أي خطأ في التخزين
+  }
+}
+
+function restoreState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    const state = JSON.parse(raw);
+
+    // دائمًا نعيد ضبط حقل التاريخ إلى تاريخ اليوم عند فتح التطبيق
+    if (singleDateInput) {
+      singleDateInput.value = "";
+      setTodayIfEmpty();
+    }
+    mode = state.mode === "until" ? "until" : "since";
+
+    if (mode === "since") {
+      modeSinceBtn.classList.add("active");
+      modeUntilBtn.classList.remove("active");
+    } else {
+      modeUntilBtn.classList.add("active");
+      modeSinceBtn.classList.remove("active");
+    }
+
+    // لا نسترجع نتيجة الحساب تلقائيًا عند فتح التطبيق
+    resultText.textContent = "";
+    resultEquivalent.textContent = "";
+    resultDetails.textContent = "";
+    resultCard.hidden = true;
+    if (resultPlaceholder) {
+      resultPlaceholder.hidden = false;
+    }
+  } catch (e) {
+    // تجاهل أي خطأ في القراءة / التحويل
+  }
+}
+
+function saveSavedEntries() {
+  try {
+    localStorage.setItem(STORAGE_SAVED_KEY, JSON.stringify(savedEntries));
+  } catch (e) {
+    // تجاهل أي خطأ في التخزين
+  }
+}
+
+function loadSavedEntries() {
+  try {
+    const raw = localStorage.getItem(STORAGE_SAVED_KEY);
+    if (!raw) {
+      savedEntries = [];
+      return;
+    }
+    savedEntries = JSON.parse(raw) || [];
+  } catch (e) {
+    savedEntries = [];
+  }
+}
+
+async function loadSavedEntriesFromCloud() {
+  // أولاً: حمّل البيانات المحلية لعرضها فوراً
+  loadSavedEntries();
+  renderSavedEntries();
+
+  // ثانياً: حاول جلب البيانات من السحابة
+  const cloudEntries = await dbFetchEntries();
+
+  if (cloudEntries === null) {
+    // فشل الاتصال بالسحابة — نبقى على البيانات المحلية
+    return;
+  }
+
+  if (cloudEntries.length === 0 && savedEntries.length > 0) {
+    // السحابة فارغة ولدينا بيانات محلية → نرفعها للسحابة
+    for (const entry of savedEntries) {
+      await dbSaveEntry(entry);
+    }
+    return;
+  }
+
+  if (cloudEntries.length > 0) {
+    // دمج: أي عنصر محلي غير موجود في السحابة نرفعه، ثم نعتمد نسخة السحابة
+    const cloudIds = new Set(cloudEntries.map((e) => String(e.id)));
+    for (const localEntry of savedEntries) {
+      if (!cloudIds.has(String(localEntry.id))) {
+        await dbSaveEntry(localEntry);
+        cloudEntries.push(localEntry);
+      }
+    }
+    savedEntries = cloudEntries;
+    saveSavedEntries();
+    renderSavedEntries();
+  }
+}
+
+function renderSavedEntries() {
+  if (!savedList) return;
+
+  savedList.innerHTML = "";
+
+  const visibleEntries = savedEntries.filter((entry) => {
+    if (importanceFilter === "all") return true;
+    return entry.importance === importanceFilter;
+  });
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  let migratedAny = false;
+
+  visibleEntries.forEach((entry, index) => {
+    const item = document.createElement("div");
+    item.className = "saved-item";
+    item.id = `entry-item-${entry.id}`;
+    item.draggable = true;
+    item.dataset.entryId = String(entry.id);
+
+    // أحداث السحب والإفلات
+    item.addEventListener("dragstart", (e) => {
+      item.classList.add("dragging");
+      e.dataTransfer.effectAllowed = "move";
+      e.dataTransfer.setData("text/plain", String(entry.id));
+    });
+    item.addEventListener("dragend", () => {
+      item.classList.remove("dragging");
+      document.querySelectorAll(".saved-item.drag-over")
+        .forEach((el) => el.classList.remove("drag-over"));
+    });
+    item.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+      item.classList.add("drag-over");
+    });
+    item.addEventListener("dragleave", () => {
+      item.classList.remove("drag-over");
+    });
+    item.addEventListener("drop", (e) => {
+      e.preventDefault();
+      item.classList.remove("drag-over");
+      const draggedId = e.dataTransfer.getData("text/plain");
+      if (!draggedId || draggedId === String(entry.id)) return;
+
+      const fromIdx = savedEntries.findIndex((x) => String(x.id) === draggedId);
+      const toIdx   = savedEntries.findIndex((x) => String(x.id) === String(entry.id));
+      if (fromIdx === -1 || toIdx === -1) return;
+
+      const [moved] = savedEntries.splice(fromIdx, 1);
+      savedEntries.splice(toIdx, 0, moved);
+      saveSavedEntries();
+      renderSavedEntries();
+      dbUpdateOrder(savedEntries);
+    });
+
+    // تلوين الحد الجانبي حسب الأهمية
+    if (entry.importance === "very-important") {
+      item.classList.add("very-important-border");
+    } else if (entry.importance === "important") {
+      item.classList.add("important-border");
+    } else {
+      item.classList.add("normal-border");
+    }
+
+    // إعادة حساب المدة ديناميكيًا (مر/بقي وعدد الأيام) إن توفّر تاريخ هدف خام
+    let dynamicMainLine = "";
+    let dynamicEquivLine = "";
+    let dynamicDetailsLine = "";
+    let dynamicSummaryLine = "";   // سطر "منذ [من] حتى [إلى] تعادل [قيمة]"
+    let blinkDays = null;
+    let blinkIsFuture = false;
+
+    // نحاول أولاً الحصول على تاريخ هدف خام، وإن لم يكن موجودًا نحاول استنتاجه من targetDate
+    let targetForCalc = null;
+
+    if (entry.targetDateRaw) {
+      const t = new Date(entry.targetDateRaw + "T00:00:00");
+      if (!isNaN(t.getTime())) {
+        targetForCalc = t;
+      }
+    } else if (entry.targetDate) {
+      const t = new Date(entry.targetDate);
+      if (!isNaN(t.getTime())) {
+        // نجحنا في تحويل النص المخزن إلى تاريخ
+        targetForCalc = t;
+
+        // ترقية المدة القديمة لتخزين targetDateRaw و modeAtSave
+        const yyyy = t.getFullYear();
+        const mm = String(t.getMonth() + 1).padStart(2, "0");
+        const dd = String(t.getDate()).padStart(2, "0");
+        entry.targetDateRaw = `${yyyy}-${mm}-${dd}`;
+
+        if (!entry.modeAtSave) {
+          // تخمين منطقي: إذا كان التاريخ في الماضي نعتبرها "منذ"، وإذا في المستقبل نعتبرها "حتى"
+          entry.modeAtSave = t <= today ? "since" : "until";
+        }
+
+        migratedAny = true;
+      }
+    }
+
+    // كخيار أخير: إذا لم ننجح في استنتاج التاريخ من النص، لكن لدينا remainingDays فنستنتج تاريخ الهدف من اليوم الحالي
+    if (!targetForCalc && typeof entry.remainingDays === "number") {
+      const msPerDay = 24 * 60 * 60 * 1000;
+      const base = new Date(today.getTime());
+      let inferred;
+
+      if (entry.remainingIsFuture) {
+        inferred = new Date(base.getTime() + entry.remainingDays * msPerDay);
+      } else {
+        inferred = new Date(base.getTime() - entry.remainingDays * msPerDay);
+      }
+
+      if (!isNaN(inferred.getTime())) {
+        targetForCalc = inferred;
+
+        const yyyy = inferred.getFullYear();
+        const mm = String(inferred.getMonth() + 1).padStart(2, "0");
+        const dd = String(inferred.getDate()).padStart(2, "0");
+        entry.targetDateRaw = `${yyyy}-${mm}-${dd}`;
+
+        if (!entry.targetDate) {
+          entry.targetDate = formatGregorian(inferred);
+        }
+
+        if (!entry.modeAtSave) {
+          entry.modeAtSave = entry.remainingIsFuture ? "until" : "since";
+        }
+
+        migratedAny = true;
+      }
+    }
+
+    if (targetForCalc) {
+      let days;
+      if (entry.modeAtSave === "since") {
+        days = diffInDays(targetForCalc, today);
+      } else {
+        days = diffInDays(today, targetForCalc);
+      }
+
+      const abs = Math.abs(days);
+
+      // اختيار الكلمة حسب الوضع الذي حُفظت به المدة، وليس حسب إشارة days
+      let verb = "";
+      if (entry.modeAtSave === "since") {
+        verb = t("verbSince");
+        blinkIsFuture = false;
+      } else if (entry.modeAtSave === "until") {
+        if (targetForCalc < today) {
+          dynamicMainLine = `<span class="result-verb-red" style="color: #22c55e;">${t("verbEnded")}</span>`;
+          dynamicEquivLine = t("daysPassedSinceEnd", abs);
+        } else if (targetForCalc === today) {
+          dynamicMainLine = `<span class="result-verb-red" style="color: #f59e0b;">${t("verbToday")}</span>`;
+          dynamicEquivLine = t("endsToday");
+        } else {
+          verb = t("verbUntil");
+          blinkIsFuture = targetForCalc > today;
+        }
+      }
+
+      if (!dynamicMainLine) {
+        if (abs === 0) {
+          dynamicMainLine = `<span class="result-verb-red">${verb}</span> ${t("todayWord")}`;
+        } else if (verb) {
+          dynamicMainLine = `<span class="result-verb-red">${verb}</span> ${abs} ${t("dayUnit")}`;
+        } else {
+          dynamicMainLine = `${abs} ${t("dayUnit")}`;
+        }
+      }
+
+      // ─── إجمالي المدة الديناميكية ───
+      // منذ → إجمالي = مدة منقضية = abs (دائماً تساوي المتبقية)
+      // حتى (مستقبل) → إجمالي = من تاريخ الحفظ حتى الهدف
+      let _totalForEquiv = abs;
+      if (entry.modeAtSave === "until" && targetForCalc > today) {
+        let _gotTotal = false;
+        // أولاً: sinceBaseRaw (تاريخ الأساس الأصلي "منذ")
+        if (entry.sinceBaseRaw) {
+          const _sb = new Date(entry.sinceBaseRaw + "T00:00:00");
+          if (!isNaN(_sb.getTime())) {
+            const _tot = Math.abs(diffInDays(_sb, targetForCalc));
+            if (_tot > 0) { _totalForEquiv = _tot; _gotTotal = true; }
+          }
+        }
+        // ثانياً: fallback إلى تاريخ الحفظ من entry.id
+        if (!_gotTotal) {
+          const _entryTs = typeof entry.id === "number" ? entry.id : NaN;
+          if (!isNaN(_entryTs) && _entryTs > 1577836800000 && _entryTs < 2524608000000) {
+            const _saveDay = new Date(_entryTs);
+            _saveDay.setHours(0, 0, 0, 0);
+            const _tot = diffInDays(_saveDay, targetForCalc);
+            if (_tot > 0) _totalForEquiv = _tot;
+          }
+        }
+      }
+
+      if (!dynamicEquivLine) {
+        dynamicEquivLine = formatEquivDynamic(abs, _totalForEquiv);
+      }
+      blinkDays = abs;
+
+      // توليد سطر التفاصيل ديناميكياً باللغة الحالية
+      const tgtFmt = formatBothCalendars(targetForCalc);
+      const todayFmt = formatBothCalendars(today);
+      if (entry.modeAtSave === "since") {
+        dynamicDetailsLine = t("joinSincePast", abs, tgtFmt, todayFmt);
+      } else if (entry.modeAtSave === "until") {
+        if (targetForCalc < today) {
+          dynamicDetailsLine = `<span class="details-gold">${t("joinEnded", abs, tgtFmt, todayFmt)}</span>`;
+        } else if (targetForCalc.getTime() === today.getTime()) {
+          dynamicDetailsLine = `<span class="details-gold">${t("joinEndsToday", tgtFmt, todayFmt)}</span>`;
+        } else {
+          dynamicDetailsLine = `<span class="details-gold">${t("joinRemaining", abs, tgtFmt, todayFmt)}</span>`;
+        }
+      }
+
+      // ── سطر التعادل الزمني "منذ [من] حتى [إلى] تعادل [قيمة]" ──
+      // since → منذ targetDate حتى اليوم
+      // until (مستقبل) → منذ اليوم حتى targetDate
+      // until (منتهي أو اليوم) → لا يُعرض لأن المعنى غير ملائم
+      const _isFutureTarget = targetForCalc > today;
+      if (entry.modeAtSave === "since" || (entry.modeAtSave === "until" && _isFutureTarget)) {
+        let _fromDate, _equivRemain, _equivTotal;
+        if (entry.modeAtSave === "since") {
+          // منذ: من targetDate حتى اليوم — المتبقي = الإجمالي = abs
+          _fromDate    = targetForCalc;
+          _equivRemain = abs;
+          _equivTotal  = abs;
+        } else {
+          // حتى (مستقبل): نفضّل sinceBaseRaw كنقطة البداية الأصلية
+          _equivRemain = abs;  // المتبقي = اليوم → الهدف
+          if (entry.sinceBaseRaw) {
+            const _sb = new Date(entry.sinceBaseRaw + "T00:00:00");
+            if (!isNaN(_sb.getTime())) {
+              _fromDate   = _sb;
+              _equivTotal = Math.abs(diffInDays(_sb, targetForCalc));
+            }
+          }
+          if (!_fromDate) {
+            // fallback: تاريخ الحفظ من entry.id كنقطة بداية
+            const _entryTs2 = typeof entry.id === "number" ? entry.id : Number(entry.id);
+            if (!isNaN(_entryTs2) && _entryTs2 > 1577836800000 && _entryTs2 < 2524608000000) {
+              const _saveDay2 = new Date(_entryTs2);
+              _saveDay2.setHours(0, 0, 0, 0);
+              _fromDate   = _saveDay2;
+              _equivTotal = Math.abs(diffInDays(_saveDay2, targetForCalc));
+            } else {
+              _fromDate   = today;
+              _equivTotal = _totalForEquiv;
+            }
+          }
+        }
+        const _toDate    = entry.modeAtSave === "since" ? today : targetForCalc;
+        const _equivFull = formatEquivDynamic(_equivRemain, _equivTotal);
+        if (_equivFull) {
+          const _fromFmt = formatBothCalendars(_fromDate);
+          const _toFmt   = formatBothCalendars(_toDate);
+          dynamicSummaryLine = `<span class="details-gold">منذ ${_fromFmt} حتى ${_toFmt}</span> ${_equivFull}`;
+        }
+      }
+    }
+
+    // إذا تعذر الحساب الديناميكي نستخدم القيم المخزنة القديمة
+    if (!dynamicMainLine && (entry.mainText || entry.remainingText)) {
+      dynamicMainLine = entry.mainText || entry.remainingText || "";
+    }
+    if (!dynamicEquivLine && entry.equivalentText) {
+      dynamicEquivLine = entry.equivalentText;
+    }
+
+    // في حال كانت المدة موعدًا قادمًا وبقي أقل من 5 أيام، نميزها بكلاس الوميض
+    let finalBlinkDays = blinkDays;
+    let finalBlinkIsFuture = blinkIsFuture;
+
+    if (finalBlinkDays == null && typeof entry.remainingDays === "number") {
+      finalBlinkDays = entry.remainingDays;
+      finalBlinkIsFuture = !!entry.remainingIsFuture;
+    }
+
+    if (finalBlinkIsFuture && typeof finalBlinkDays === "number") {
+      if (finalBlinkDays > 0 && finalBlinkDays < 5) {
+        item.classList.add("near-event-row");
+      }
+    }
+
+    const left = document.createElement("div");
+    left.className = "saved-item-main";
+
+    const titleRow = document.createElement("div");
+    titleRow.className = "saved-item-meta";
+
+    const title = document.createElement("span");
+    title.className = "saved-item-title";
+    title.textContent = entry.note || "-";
+
+    const stars = document.createElement("span");
+    stars.className = "saved-item-stars";
+    if (entry.importance === "very-important") {
+      stars.innerHTML = "<span class='star'>★★</span>";
+    } else if (entry.importance === "important") {
+      stars.innerHTML = "<span class='star'>★</span>";
+    }
+
+    titleRow.appendChild(title);
+    if (stars.innerHTML) {
+      titleRow.appendChild(stars);
+    }
+    // ── أيقونة التحذير للمواعيد ≤ 3 أيام ──
+    if (entry.modeAtSave === "until" && !entry.hidden) {
+      const _t = entry.targetDateRaw ? new Date(entry.targetDateRaw + "T00:00:00") : null;
+      if (_t && !isNaN(_t)) {
+        const _d = diffInDays(today, _t);
+        if (_d >= 0 && _d <= 3) {
+          const warnIcon = document.createElement("button");
+          warnIcon.className = "entry-warn-icon";
+          warnIcon.type = "button";
+          warnIcon.title = _d === 0 ? t("notifBodyToday").replace("{name}","") : `${_d} ${t("dayUnit")}`;
+          warnIcon.textContent = _d === 0 ? "⚡" : "⚠";
+          warnIcon.addEventListener("click", (ev) => {
+            ev.stopPropagation();
+            scrollToEntry(entry.id);
+          });
+          titleRow.appendChild(warnIcon);
+        }
+      }
+    }
+
+    const remainingLine = document.createElement("div");
+    remainingLine.className = "saved-item-remaining";
+    if (entry.hidden) {
+      remainingLine.textContent = t("hiddenLabel");
+    } else {
+      const parts = [];
+      // دمج سطر "متبقي/مر" مع "تعادل" في سطر واحد بفاصل —
+      if (dynamicMainLine && dynamicEquivLine) {
+        parts.push(dynamicMainLine + " — " + dynamicEquivLine);
+      } else if (dynamicMainLine) {
+        parts.push(dynamicMainLine);
+      } else if (dynamicEquivLine) {
+        parts.push(dynamicEquivLine);
+      }
+
+      // سطر التفاصيل: نُفضّل النسخة الديناميكية (تُترجم مع اللغة الحالية)
+      // ونعود إلى المخزّن فقط إن لم ننجح في حسابه
+      if (dynamicDetailsLine) {
+        parts.push(dynamicDetailsLine);
+      } else if (entry.detailsText) {
+        parts.push(entry.detailsText);
+      }
+
+      // سطر التعادل الزمني (منذ/حتى/تعادل) — يُعرض للمدد ذات التاريخ الخام فقط
+      if (dynamicSummaryLine) {
+        parts.push(dynamicSummaryLine);
+      }
+
+      remainingLine.innerHTML = parts.join("<br>") || "-";
+    }
+
+    left.appendChild(titleRow);
+    left.appendChild(remainingLine);
+
+    const right = document.createElement("div");
+    right.className = "saved-item-actions";
+    const toggleBtn = document.createElement("button");
+    toggleBtn.className = "toggle-btn";
+    toggleBtn.textContent = entry.hidden ? t("showBtn") : t("hideBtn");
+    toggleBtn.addEventListener("click", () => {
+      entry.hidden = !entry.hidden;
+      saveSavedEntries();
+      renderSavedEntries();
+      dbUpdateEntry(entry);
+    });
+
+    right.appendChild(toggleBtn);
+
+    const deleteBtn = document.createElement("button");
+    deleteBtn.className = "toggle-btn";
+    deleteBtn.textContent = t("deleteBtn");
+    deleteBtn.addEventListener("click", () => {
+      const ok = confirm(t("deleteConfirm"));
+      if (!ok) return;
+
+      savedEntries = savedEntries.filter((e) => e.id !== entry.id);
+      saveSavedEntries();
+      renderSavedEntries();
+      dbDeleteEntry(entry.id);
+    });
+
+    right.appendChild(deleteBtn);
+
+    // ── زر النسخ ──
+    const copyBtn = document.createElement("button");
+    copyBtn.className = "toggle-btn";
+    copyBtn.textContent = t("copyBtn");
+    copyBtn.addEventListener("click", () => {
+      // بناء نص النسخ من أجزاء المدة (بدون وسوم HTML)
+      function stripHtml(html) {
+        const tmp = document.createElement("div");
+        tmp.innerHTML = html || "";
+        return tmp.textContent.trim();
+      }
+      const lines = [];
+      if (entry.note) lines.push(entry.note);
+      if (dynamicMainLine)   lines.push(stripHtml(dynamicMainLine) + " — " + stripHtml(dynamicEquivLine));
+      else if (dynamicEquivLine) lines.push(stripHtml(dynamicEquivLine));
+      const det = dynamicDetailsLine || entry.detailsText || "";
+      if (det) lines.push(stripHtml(det));
+      if (dynamicSummaryLine) lines.push(stripHtml(dynamicSummaryLine));
+      const textToCopy = lines.join("\n");
+      navigator.clipboard.writeText(textToCopy).then(() => {
+        copyBtn.textContent = t("copiedBtn");
+        setTimeout(() => { copyBtn.textContent = t("copyBtn"); }, 2000);
+      }).catch(() => {
+        // fallback للمتصفحات القديمة
+        const ta = document.createElement("textarea");
+        ta.value = textToCopy;
+        ta.style.position = "fixed"; ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+        copyBtn.textContent = t("copiedBtn");
+        setTimeout(() => { copyBtn.textContent = t("copyBtn"); }, 2000);
+      });
+    });
+    right.appendChild(copyBtn);
+
+    const moveUpBtn = document.createElement("button");
+    moveUpBtn.className = "toggle-btn";
+    moveUpBtn.textContent = "▲";
+    const originalIndex = savedEntries.findIndex((e) => e.id === entry.id);
+
+    moveUpBtn.disabled = originalIndex <= 0;
+    moveUpBtn.addEventListener("click", () => {
+      if (originalIndex <= 0) return;
+      const tmp = savedEntries[originalIndex - 1];
+      savedEntries[originalIndex - 1] = savedEntries[originalIndex];
+      savedEntries[originalIndex] = tmp;
+      saveSavedEntries();
+      renderSavedEntries();
+      dbUpdateOrder(savedEntries);
+    });
+
+    const moveDownBtn = document.createElement("button");
+    moveDownBtn.className = "toggle-btn";
+    moveDownBtn.textContent = "▼";
+    moveDownBtn.disabled = originalIndex === savedEntries.length - 1;
+    moveDownBtn.addEventListener("click", () => {
+      if (originalIndex === savedEntries.length - 1) return;
+      const tmp = savedEntries[originalIndex + 1];
+      savedEntries[originalIndex + 1] = savedEntries[originalIndex];
+      savedEntries[originalIndex] = tmp;
+      saveSavedEntries();
+      renderSavedEntries();
+      dbUpdateOrder(savedEntries);
+    });
+
+    right.appendChild(moveUpBtn);
+    right.appendChild(moveDownBtn);
+
+    item.appendChild(left);
+    item.appendChild(right);
+
+    savedList.appendChild(item);
+  });
+
+  if (savedCountEl) {
+    const count = savedEntries.length;
+    savedCountEl.textContent = count
+      ? t("savedCount", count)
+      : t("noSaved");
+  }
+
+  // ── شريط المواعيد ≤ 3 أيام ──
+  const ndBar = document.getElementById("near-deadline-bar");
+  if (ndBar) {
+    const todayForBar = new Date(); todayForBar.setHours(0,0,0,0);
+    const nearItems = savedEntries.filter(e => {
+      if (e.modeAtSave !== "until" || e.hidden || !e.targetDateRaw) return false;
+      const tgt = new Date(e.targetDateRaw + "T00:00:00");
+      if (isNaN(tgt)) return false;
+      const d = diffInDays(todayForBar, tgt);
+      return d >= 0 && d <= 3;
+    });
+    if (nearItems.length > 0) {
+      ndBar.hidden = false;
+      ndBar.innerHTML = `<span class="nd-label">${t("ndBarLabel")}</span>` +
+        nearItems.map(e => {
+          const tgt = new Date(e.targetDateRaw + "T00:00:00");
+          const d   = diffInDays(todayForBar, tgt);
+          const daysTxt = d === 0
+            ? `<span class="nd-days">${t("notifBodyToday").replace("{name}","")}</span>`
+            : `<span class="nd-days">${d} ${t("dayUnit")}</span>`;
+          return `<button class="nd-chip" onclick="scrollToEntry(${e.id})">${e.note} ${daysTxt}</button>`;
+        }).join("");
+    } else {
+      ndBar.hidden = true;
+    }
+  }
+}
+
+function calculate() {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const target = parseDate(singleDateInput);
+
+  if (!target) {
+    resultCard.hidden = true;
+    if (resultPlaceholder) {
+      resultPlaceholder.hidden = false;
+    }
+    saveState({ resultVisible: false });
+    return;
+  }
+
+  let days = 0;
+  if (mode === "since") {
+    // منذ التاريخ حتى اليوم: نحسب فقط إذا كان التاريخ قبل أو يساوي اليوم
+    if (target <= today) {
+      days = diffInDays(target, today);
+      // تخزين هذا التاريخ كأساس لعبارة "منذ ..." لاستخدامه لاحقًا في وضع حتى التاريخ
+      lastSinceBaseGregorian = formatGregorian(target) + " م";
+      lastSinceBaseRaw = singleDateInput.value || "";
+    } else {
+      days = 0;
+    }
+  } else {
+    // حتى التاريخ: نحسب دائماً لمعرفة هل انتهى أم لا
+    days = diffInDays(today, target);
+    // إذا كان التاريخ في الماضي، نعرض رسالة انتهاء رائعة
+    if (target < today) {
+      const pastDays = Math.abs(days);
+      resultText.innerHTML = `<span class="result-verb-red" style="color: #22c55e;">${t("verbEnded")}</span>`;
+      resultEquivalent.textContent = t("daysPassedSinceEnd", pastDays);
+      resultDetails.innerHTML = `<span class="details-gold">${t("joinEnded", pastDays, formatBothCalendars(target), formatBothCalendars(today))}</span>`;
+      
+      // تخزين معلومات آخر حساب لاستخدامها عند الحفظ في الجدول
+      lastDaysValue = pastDays;
+      lastIsRemaining = false;
+      lastTargetGregorian = formatGregorian(target);
+      
+      resultCard.hidden = false;
+      if (resultPlaceholder) {
+        resultPlaceholder.hidden = true;
+      }
+      saveState();
+      return;
+    } else if (target === today) {
+      resultText.innerHTML = `<span class="result-verb-red" style="color: #f59e0b;">${t("verbToday")}</span>`;
+      resultEquivalent.textContent = t("endsToday");
+      resultDetails.innerHTML = `<span class="details-gold">${t("joinEndsToday", formatBothCalendars(target), formatBothCalendars(today))}</span>`;
+      
+      // تخزين معلومات آخر حساب لاستخدامها عند الحفظ في الجدول
+      lastDaysValue = 0;
+      lastIsRemaining = false;
+      lastTargetGregorian = formatGregorian(target);
+      
+      resultCard.hidden = false;
+      if (resultPlaceholder) {
+        resultPlaceholder.hidden = true;
+      }
+      saveState();
+      return;
+    }
+  }
+
+  const abs = Math.abs(days);
+  let verb;
+  let isRemaining = false;
+  const isFutureTarget = target > today;
+
+  // حفظ التاريخ الهدف الميلادي لعرضه في المدد المحفوظة
+  lastTargetGregorian = formatGregorian(target);
+
+  if (abs === 0) {
+    // إذا كان التاريخ هو اليوم نفسه، نعرض النتيجة حسب الوضع
+    if (mode === "since") {
+      verb = t("verbSince");
+      isRemaining = false;
+      resultText.innerHTML = `<span class="result-verb-red">${verb}</span> ${t("todayWord")}`;
+      resultDetails.innerHTML = t("joinSincePast", 0, formatBothCalendars(target), formatBothCalendars(today));
+    } else {
+      verb = t("verbUntil");
+      isRemaining = false;
+      resultText.innerHTML = `<span class="result-verb-red">${verb}</span> ${t("todayWord")}`;
+      resultDetails.innerHTML = `<span class="details-gold">${t("joinRemaining", 0, formatBothCalendars(target), formatBothCalendars(today))}</span>`;
+    }
+    resultEquivalent.textContent = "";
+  } else {
+    // اختيار الكلمة حسب الوضع الحالي للزر
+    if (mode === "since") {
+      verb = t("verbSince");
+      isRemaining = false;
+    } else {
+      verb = t("verbUntil");
+      isRemaining = isFutureTarget;
+    }
+    resultText.innerHTML = `<span class="result-verb-red">${verb}</span> ${abs} ${t("dayUnit")}`;
+
+    // حساب الإجمالي: إذا كان الوضع "حتى" ويوجد تاريخ أساس "منذ"، نحسب الإجمالي من الأساس
+    let _calcTotal = abs;
+    if (mode === "until" && lastSinceBaseRaw) {
+      const _calcBase = new Date(lastSinceBaseRaw + "T00:00:00");
+      if (!isNaN(_calcBase.getTime())) {
+        const _calcTot = Math.abs(diffInDays(_calcBase, target));
+        if (_calcTot > 0) _calcTotal = _calcTot;
+      }
+    }
+    resultEquivalent.innerHTML = formatEquivDynamic(abs, _calcTotal);
+
+    if (mode === "since") {
+      resultDetails.innerHTML = t("joinSincePast", abs, formatBothCalendars(target), formatBothCalendars(today));
+    } else {
+      let details = `<span class="details-gold">${t("joinRemaining", abs, formatBothCalendars(target), formatBothCalendars(today))}</span>`;
+
+      // نضيف سطرًا يلخص الفترة بين تاريخ أساس وتاريخ "حتى" الحالي
+      // إذا وُجد lastSinceBaseRaw نستخدمه، وإلا نستخدم تاريخ اليوم كأساس
+      const rawDateValue = singleDateInput.value || "";
+      if (rawDateValue) {
+        let baseRawForSummary = lastSinceBaseRaw;
+
+        if (!baseRawForSummary) {
+          const yyyy = today.getFullYear();
+          const mm = String(today.getMonth() + 1).padStart(2, "0");
+          const dd = String(today.getDate()).padStart(2, "0");
+          baseRawForSummary = `${yyyy}-${mm}-${dd}`;
+        }
+
+        const base = new Date(baseRawForSummary + "T00:00:00");
+        const untilDate = new Date(rawDateValue + "T00:00:00");
+        if (!isNaN(base.getTime()) && !isNaN(untilDate.getTime())) {
+          const betweenDays = diffInDays(base, untilDate);
+          const absBetween = Math.abs(betweenDays);
+          const eqBetween = formatEquivDynamic(abs, absBetween);
+
+          const fromText = formatGregorian(base) + " م";
+          const toText = formatGregorian(untilDate) + " م";
+
+          // eqBetween تبدأ بـ "تعادل X من أصل Y" مباشرة
+          const eqText = eqBetween || `تعادل ${absBetween} ${t("dayUnit")}`;
+
+          details += `<br><span class="details-gold">منذ ${fromText} حتى ${toText}</span> ${eqText}`;
+        }
+      }
+
+      resultDetails.innerHTML = details;
+    }
+  }
+
+  // تخزين معلومات آخر حساب لاستخدامها عند الحفظ في الجدول
+  lastDaysValue = abs;
+  lastIsRemaining = isRemaining;
+
+  resultCard.hidden = false;
+  if (resultPlaceholder) {
+    resultPlaceholder.hidden = true;
+  }
+  saveState();
+}
+
+// ============ منطق المصادقة ============
+
+function showAuthScreen() {
+  if (authScreen) authScreen.hidden = false;
+  if (mainApp) mainApp.hidden = true;
+}
+
+function showMainApp() {
+  if (authScreen) authScreen.hidden = true;
+  if (mainApp) mainApp.hidden = false;
+}
+
+function setAuthMode(newMode) {
+  authMode = newMode;
+  const isForgot = (newMode === "forgot");
+  const isSignup = (newMode === "signup");
+
+  // إخفاء / إظهار القسمين الرئيسيين
+  if (authLoginFields) authLoginFields.hidden = isForgot;
+  if (forgotSection)   forgotSection.hidden   = !isForgot;
+
+  if (newMode === "login") {
+    if (authTitle)         authTitle.textContent     = t("authTitleLogin");
+    if (authSubtitle)      authSubtitle.textContent  = t("authSubtitleLogin");
+    if (authHintField)     authHintField.hidden       = true;
+    if (authSubmitBtn)     authSubmitBtn.textContent = t("loginBtn");
+    if (authRemindBtn)     authRemindBtn.hidden       = true;
+    if (authToggleText)    authToggleText.textContent = t("noAccount");
+    if (authToggleBtn)     authToggleBtn.textContent  = t("goToSignup");
+    if (forgotLinkWrapper) forgotLinkWrapper.hidden   = false;
+  } else if (isSignup) {
+    if (authTitle)         authTitle.textContent     = t("authTitleSignup");
+    if (authSubtitle)      authSubtitle.textContent  = t("authSubtitleSignup");
+    if (authHintField)     authHintField.hidden       = false;
+    if (authSubmitBtn)     authSubmitBtn.textContent = t("signupBtn");
+    if (authRemindBtn)     authRemindBtn.hidden       = true;
+    if (authToggleText)    authToggleText.textContent = t("haveAccount");
+    if (authToggleBtn)     authToggleBtn.textContent  = t("goToLogin");
+    if (forgotLinkWrapper) forgotLinkWrapper.hidden   = true;
+    if (authRememberCb)    authRememberCb.checked     = true;
+  } else {
+    // forgot
+    if (authTitle)      authTitle.textContent    = t("forgotTitle");
+    if (authSubtitle)   authSubtitle.textContent = t("forgotSubtitle");
+    if (forgotHintDisplay) { forgotHintDisplay.hidden = true; forgotHintDisplay.textContent = ""; }
+    if (forgotHintVerify)  forgotHintVerify.value  = "";
+    if (forgotNewPassword) forgotNewPassword.value = "";
+    // نسخ اسم المستخدم المُدخل مسبقاً للراحة
+    if (forgotUsername && authUsername) forgotUsername.value = authUsername.value || "";
+  }
+  clearAuthMessages();
+}
+
+function saveRememberedCredentials(username, password) {
+  try { localStorage.setItem(STORAGE_REMEMBER_KEY, JSON.stringify({ username, password })); } catch (e) {}
+}
+
+function clearRememberedCredentials() {
+  localStorage.removeItem(STORAGE_REMEMBER_KEY);
+}
+
+function loadRememberedCredentials() {
+  try {
+    const raw = localStorage.getItem(STORAGE_REMEMBER_KEY);
+    if (!raw) return;
+    const data = JSON.parse(raw);
+    if (data && data.username) {
+      if (authUsername)   authUsername.value   = data.username;
+      if (authPassword)   authPassword.value   = data.password || "";
+      if (authRememberCb) authRememberCb.checked = true;
+    }
+  } catch (e) {}
+}
+
+function clearAuthMessages() {
+  if (authError)        { authError.hidden = true; authError.textContent = ""; }
+  if (authHintDisplay)  { authHintDisplay.hidden = true; authHintDisplay.textContent = ""; }
+  if (authRemindBtn)    { authRemindBtn.hidden = true; authRemindBtn.dataset.hint = ""; }
+  if (forgotHintDisplay){ forgotHintDisplay.hidden = true; forgotHintDisplay.textContent = ""; }
+}
+
+async function handleForgotShowHint() {
+  const username = ((forgotUsername || authUsername) ? (forgotUsername || authUsername).value : "").trim();
+  if (!username) {
+    showAuthError(t("forgotEnterUsername"));
+    return;
+  }
+  forgotShowHintBtn.disabled = true;
+  const res = await dbGetHint(username);
+  forgotShowHintBtn.disabled = false;
+  if (!res.exists) {
+    showAuthError(t("forgotUserNotFound"));
+    return;
+  }
+  if (!res.hint) {
+    forgotHintDisplay.textContent = t("noHintSet");
+  } else {
+    forgotHintDisplay.textContent = t("hintPrefix") + res.hint;
+  }
+  forgotHintDisplay.hidden = false;
+  authError.hidden = true;
+}
+
+async function handleForgotSubmit() {
+  const username  = ((forgotUsername || authUsername) ? (forgotUsername || authUsername).value : "").trim();
+  const hintInput = (forgotHintVerify ? forgotHintVerify.value : "").trim();
+  const newPw     = (forgotNewPassword ? forgotNewPassword.value : "").trim();
+
+  if (!username || !hintInput || !newPw) {
+    showAuthError(t("forgotEnterAll"));
+    return;
+  }
+
+  const submitBtn = document.getElementById("auth-submit-btn");
+  // نعيد استخدام الزر إذا كان موجوداً لاحقاً، أو نعطّل show-hint btn
+  forgotShowHintBtn.disabled = true;
+  forgotHintVerify.disabled  = true;
+  forgotNewPassword.disabled = true;
+  backToLoginBtn.disabled    = true;
+
+  const res = await dbResetPasswordWithHint(username, hintInput, newPw);
+
+  forgotShowHintBtn.disabled = false;
+  forgotHintVerify.disabled  = false;
+  forgotNewPassword.disabled = false;
+  backToLoginBtn.disabled    = false;
+
+  if (res.ok) {
+    showAuthError(t("forgotSuccess"));
+    authError.style.color = "var(--color-success, #22c55e)";
+    setTimeout(() => {
+      authError.style.color = "";
+      setAuthMode("login");
+      if (authUsername) authUsername.value = username;
+    }, 2500);
+  } else if (res.error === "user_not_found") {
+    showAuthError(t("forgotUserNotFound"));
+  } else {
+    showAuthError(t("forgotHintMismatch"));
+  }
+}
+
+function openChangePwModal() {
+  changePwOld.value = "";
+  changePwNew.value = "";
+  changePwConfirm.value = "";
+  changePwError.hidden = true;
+  changePwError.textContent = "";
+  changePwModal.hidden = false;
+  changePwOld.focus();
+}
+
+function closeChangePwModal() {
+  changePwModal.hidden = true;
+}
+
+async function handleChangePwSubmit(e) {
+  e.preventDefault();
+  const oldPw  = (changePwOld.value || "").trim();
+  const newPw  = (changePwNew.value || "").trim();
+  const confPw = (changePwConfirm.value || "").trim();
+
+  changePwError.hidden = true;
+
+  if (!oldPw || !newPw || !confPw) {
+    changePwError.textContent = t("changePwEmpty");
+    changePwError.hidden = false;
+    return;
+  }
+  if (newPw !== confPw) {
+    changePwError.textContent = t("changePwMismatch");
+    changePwError.hidden = false;
+    return;
+  }
+
+  changePwSubmitBtn.disabled = true;
+  changePwSubmitBtn.textContent = t("changePwProcessing");
+
+  const res = await dbChangePassword(currentUsername, oldPw, newPw);
+
+  changePwSubmitBtn.disabled = false;
+  changePwSubmitBtn.textContent = t("changePwSubmitBtn");
+
+  if (res.ok) {
+    changePwError.style.color = "var(--color-success, #22c55e)";
+    changePwError.textContent = t("changePwSuccess");
+    changePwError.hidden = false;
+    setTimeout(() => {
+      changePwError.style.color = "";
+      closeChangePwModal();
+    }, 2000);
+  } else if (res.error === "wrong_old_password") {
+    changePwError.textContent = t("changePwWrongOld");
+    changePwError.hidden = false;
+  } else {
+    changePwError.textContent = res.error || t("changePwEmpty");
+    changePwError.hidden = false;
+  }
+}
+
+function showAuthError(msg) {
+  authError.textContent = msg;
+  authError.hidden = false;
+}
+
+function persistSession(username) {
+  try {
+    localStorage.setItem(STORAGE_USER_KEY, username);
+  } catch (e) {}
+}
+
+function readSession() {
+  try {
+    return localStorage.getItem(STORAGE_USER_KEY) || null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function clearSession() {
+  try {
+    localStorage.removeItem(STORAGE_USER_KEY);
+    localStorage.removeItem(STORAGE_SAVED_KEY);
+  } catch (e) {}
+}
+
+async function startAppForUser(username) {
+  setCurrentUsername(username);
+  persistSession(username);
+  if (userNameEl) userNameEl.textContent = username;
+  showMainApp();
+
+  // مسح أي بيانات سابقة من localStorage لمنع تسرّب بيانات حساب آخر
+  try { localStorage.removeItem(STORAGE_SAVED_KEY); } catch (e) {}
+  savedEntries = [];
+
+  // تحميل البيانات الخاصة بهذا المستخدم من السحابة
+  await loadSavedEntriesFromCloud();
+}
+
+async function handleAuthSubmit(e) {
+  e.preventDefault();
+  if (authMode === "forgot") { handleForgotSubmit(); return; }
+  clearAuthMessages();
+
+  const username = (authUsername.value || "").trim();
+  const password = authPassword.value || "";
+
+  if (!username || !password) {
+    showAuthError(t("errEnterBoth"));
+    return;
+  }
+
+  authSubmitBtn.disabled = true;
+  authSubmitBtn.textContent = t("processingBtn");
+
+  try {
+    if (authMode === "login") {
+      const res = await dbLogin(username, password);
+      if (res.ok) {
+        if (authRememberCb && authRememberCb.checked) {
+          saveRememberedCredentials(username, password);
+        } else {
+          clearRememberedCredentials();
+        }
+        await startAppForUser(username);
+      } else if (!res.exists) {
+        showAuthError(t("errUserNotFound"));
+      } else {
+        showAuthError(t("errWrongPassword"));
+        authRemindBtn.hidden = false;
+        authRemindBtn.dataset.hint = res.hint || "";
+      }
+    } else {
+      // signup
+      const hintVal = (authHint.value || "").trim();
+      if (!hintVal) {
+        showAuthError(t("errNeedHint"));
+        return;
+      }
+      // التحقق من التكرار يتم داخل dbSignup (عالمياً عبر كل التطبيقات)
+      const res = await dbSignup(username, password, hintVal);
+      if (res.ok) {
+        saveRememberedCredentials(username, password);
+        await startAppForUser(username);
+      } else {
+        let msg = res.error || "";
+        if (res.suggestions && Array.isArray(res.suggestions) && res.suggestions.length > 0) {
+          msg += ": " + res.suggestions.join(", ");
+        }
+        showAuthError(msg);
+      }
+    }
+  } finally {
+    authSubmitBtn.disabled = false;
+    authSubmitBtn.textContent = authMode === "login" ? t("loginBtn") : t("signupBtn");
+  }
+}
+
+function handleRemindClick() {
+  const hint = authRemindBtn.dataset.hint || "";
+  if (hint) {
+    authHintDisplay.textContent = t("hintPrefix") + hint;
+  } else {
+    authHintDisplay.textContent = t("noHintSet");
+  }
+  authHintDisplay.hidden = false;
+}
+
+function handleLogout() {
+  const ok = confirm(t("logoutConfirm"));
+  if (!ok) return;
+
+  setCurrentUsername(null);
+  clearSession();
+  savedEntries = [];
+  if (savedList) savedList.innerHTML = "";
+  if (authUsername) authUsername.value = "";
+  if (authPassword) authPassword.value = "";
+  if (authHint) authHint.value = "";
+  setAuthMode("login");
+  showAuthScreen();
+}
+
+// ربط أحداث المصادقة
+if (authForm) authForm.addEventListener("submit", handleAuthSubmit);
+if (authRememberCb) {
+  authRememberCb.addEventListener("change", () => {
+    if (!authRememberCb.checked) clearRememberedCredentials();
+  });
+}
+if (authToggleBtn) authToggleBtn.addEventListener("click", () => {
+  setAuthMode(authMode === "login" ? "signup" : "login");
+});
+if (authRemindBtn) authRemindBtn.addEventListener("click", handleRemindClick);
+if (logoutBtn) logoutBtn.addEventListener("click", handleLogout);
+
+// نسيت كلمة المرور
+if (forgotLinkBtn)     forgotLinkBtn.addEventListener("click", () => setAuthMode("forgot"));
+if (forgotShowHintBtn) forgotShowHintBtn.addEventListener("click", handleForgotShowHint);
+if (backToLoginBtn)    backToLoginBtn.addEventListener("click", () => setAuthMode("login"));
+if (forgotSection) {
+  forgotSection.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") { e.preventDefault(); handleForgotSubmit(); }
+  });
+}
+if (forgotSection) {
+  const forgotResetBtn = document.createElement("button");
+  forgotResetBtn.type = "button";
+  forgotResetBtn.className = "auth-submit-btn";
+  forgotResetBtn.id = "forgot-submit-btn";
+  forgotResetBtn.setAttribute("data-i18n", "forgotSubmitBtn");
+  forgotResetBtn.textContent = t("forgotSubmitBtn");
+  forgotResetBtn.addEventListener("click", handleForgotSubmit);
+  const backWrapper = forgotSection.querySelector(".forgot-back-wrapper");
+  if (backWrapper) {
+    backWrapper.before(forgotResetBtn);
+  } else {
+    forgotSection.appendChild(forgotResetBtn);
+  }
+}
+
+// تغيير كلمة المرور
+if (changePwBtn)       changePwBtn.addEventListener("click", openChangePwModal);
+if (changePwCloseBtn)  changePwCloseBtn.addEventListener("click", closeChangePwModal);
+if (changePwCancelBtn) changePwCancelBtn.addEventListener("click", closeChangePwModal);
+if (changePwForm)      changePwForm.addEventListener("submit", handleChangePwSubmit);
+if (changePwModal) {
+  changePwModal.addEventListener("click", (e) => {
+    if (e.target === changePwModal) closeChangePwModal();
+  });
+}
+
+// ============ المشاركة ============
+function buildShareMessage() {
+  const title = (typeof t === "function") ? t("appTitle") : "عداد الأيام";
+  const intro = (typeof t === "function") ? t("shareIntro") : "جرّب تطبيق";
+  const webLbl = (typeof t === "function") ? t("shareWebLabel") : "رابط الموقع:";
+  const apkLbl = (typeof t === "function") ? t("shareApkLabel") : "رابط تحميل APK:";
+  return `${intro} ${title}\n${webLbl} ${SHARE_WEB_URL}\n${apkLbl} ${SHARE_APK_URL}`;
+}
+
+function openShareModal() {
+  if (!shareModal) return;
+  if (shareWebLink) {
+    shareWebLink.href = SHARE_WEB_URL;
+    shareWebLink.textContent = SHARE_WEB_URL;
+  }
+  if (shareApkLink) {
+    shareApkLink.href = SHARE_APK_URL;
+    shareApkLink.textContent = SHARE_APK_URL;
+  }
+  if (shareToast) {
+    shareToast.hidden = true;
+    shareToast.textContent = "";
+  }
+  shareModal.hidden = false;
+}
+
+function closeShareModal() {
+  if (shareModal) shareModal.hidden = true;
+}
+
+function showShareToast(msg) {
+  if (!shareToast) return;
+  shareToast.textContent = msg;
+  shareToast.hidden = false;
+  setTimeout(() => { shareToast.hidden = true; }, 2200);
+}
+
+function handleShareTo(platform) {
+  const msg = buildShareMessage();
+  const encMsg = encodeURIComponent(msg);
+  const encWeb = encodeURIComponent(SHARE_WEB_URL);
+  const subject = encodeURIComponent((typeof t === "function") ? t("appTitle") : "عداد الأيام");
+  let url = "";
+  switch (platform) {
+    case "whatsapp":
+      url = `https://wa.me/?text=${encMsg}`;
+      break;
+    case "telegram":
+      url = `https://t.me/share/url?url=${encWeb}&text=${encMsg}`;
+      break;
+    case "twitter":
+      url = `https://twitter.com/intent/tweet?text=${encMsg}`;
+      break;
+    case "facebook":
+      url = `https://www.facebook.com/sharer/sharer.php?u=${encWeb}&quote=${encMsg}`;
+      break;
+    case "messenger":
+      url = `https://www.facebook.com/dialog/send?link=${encWeb}&app_id=140586622674265&redirect_uri=${encWeb}`;
+      break;
+    case "email":
+      url = `mailto:?subject=${subject}&body=${encMsg}`;
+      break;
+    case "sms":
+      url = `sms:?body=${encMsg}`;
+      break;
+    case "copy":
+      copyShareLinks();
+      return;
+  }
+  if (url) {
+    window.open(url, "_blank", "noopener,noreferrer");
+  }
+}
+
+async function copyShareLinks() {
+  const msg = buildShareMessage();
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(msg);
+    } else {
+      const ta = document.createElement("textarea");
+      ta.value = msg;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+    }
+    showShareToast((typeof t === "function") ? t("shareCopied") : "✅ تم نسخ الروابط");
+  } catch (err) {
+    showShareToast((typeof t === "function") ? t("shareCopyFailed") : "تعذّر النسخ");
+  }
+}
+
+if (shareBtn)      shareBtn.addEventListener("click", openShareModal);
+if (shareCloseBtn) shareCloseBtn.addEventListener("click", closeShareModal);
+if (shareModal) {
+  shareModal.addEventListener("click", (e) => {
+    if (e.target === shareModal) closeShareModal();
+  });
+}
+sharePlatformBtns.forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const platform = btn.getAttribute("data-share");
+    if (platform) handleShareTo(platform);
+  });
+});
+
+// ============ ربط زر تبديل اللغة ============
+function onLanguageChanged() {
+  // بعد تغيير اللغة: أعد رسم القوائم والنصوص الديناميكية
+  if (authScreen && !authScreen.hidden) {
+    setAuthMode(authMode);
+  }
+  renderSavedEntries();
+  // إذا كانت النتيجة مرئية، أعد الحساب لتحديث نصوصها
+  if (resultCard && !resultCard.hidden && singleDateInput && singleDateInput.value) {
+    try { calculate(); } catch (e) {}
+  }
+}
+
+if (langToggleBtn) langToggleBtn.addEventListener("click", toggleLanguage);
+if (langToggleAuthBtn) langToggleAuthBtn.addEventListener("click", toggleLanguage);
+
+// ============ بدء التشغيل ============
+loadLanguage();
+applyLanguageToDOM();
+loadTheme();
+
+// استعلام keep-alive فور فتح الصفحة (بدون انتظار - لا يعطّل الواجهة)
+// يُبقي مشروع Supabase نشطاً عند زيارة cron-job اليومية
+dbKeepAlivePing();
+
+(async function initApp() {
+  try {
+    const savedUsername = readSession();
+    if (savedUsername) {
+      // تحقّق من أن المستخدم ما زال موجوداً في القاعدة قبل استعادة الجلسة
+      const user = await dbGetUser(savedUsername);
+      if (user) {
+        restoreState();
+        await startAppForUser(savedUsername);
+        return;
+      }
+      clearSession();
+    }
+  } catch (e) {
+    console.error("initApp error:", e);
+    clearSession();
+  }
+  // لا توجد جلسة → اعرض شاشة تسجيل الدخول
+  setAuthMode("login");
+  loadRememberedCredentials();
+  showAuthScreen();
+})();
+
+if (modeSinceBtn && modeUntilBtn) {
+  modeSinceBtn.addEventListener("click", () => {
+    mode = "since";
+    modeSinceBtn.classList.add("active");
+    modeUntilBtn.classList.remove("active");
+    calculate();
+  });
+
+  modeUntilBtn.addEventListener("click", () => {
+    mode = "until";
+    modeUntilBtn.classList.add("active");
+    modeSinceBtn.classList.remove("active");
+    calculate();
+  });
+}
+
+if (themeToggleBtn) {
+  themeToggleBtn.addEventListener("click", () => {
+    const isLight = document.body.classList.contains("light-theme");
+    const next = isLight ? "dark" : "light";
+    applyTheme(next);
+    try {
+      localStorage.setItem(STORAGE_THEME_KEY, next);
+    } catch (e) {
+      // تجاهل أي خطأ في التخزين
+    }
+  });
+}
+
+if (singleDateInput) {
+  singleDateInput.addEventListener("change", calculate);
+}
+
+// [dp] تم استبدال معالج النقر بالتقويم المخصص
+
+if (filterButtons && filterButtons.length) {
+  filterButtons.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const value = btn.getAttribute("data-importance") || "all";
+      importanceFilter = value;
+
+      // تحديث الزر النشط شكليًا
+      filterButtons.forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+
+      renderSavedEntries();
+    });
+  });
+}
+
+async function openTrashModal() {
+  if (!trashModal || !trashList) return;
+  trashList.innerHTML = `<p class="trash-empty">${t("trashLoading")}</p>`;
+  trashModal.hidden = false;
+
+  const deleted = await dbFetchDeletedEntries();
+  renderTrashList(deleted);
+}
+
+function updateTrashDeleteBtn() {
+  if (!trashDeleteAllBtn || !trashList) return;
+  const checked = trashList.querySelectorAll(".trash-item-check:checked");
+  const n = checked.length;
+  trashDeleteAllBtn.disabled = (n === 0);
+  trashDeleteAllBtn.textContent = n > 0 ? t("trashDeleteSelected", n) : t("trashDeleteAllBtn");
+
+  if (trashSelectAllCb) {
+    const all = trashList.querySelectorAll(".trash-item-check");
+    trashSelectAllCb.checked       = all.length > 0 && n === all.length;
+    trashSelectAllCb.indeterminate = n > 0 && n < all.length;
+  }
+}
+
+function renderTrashList(deleted) {
+  if (!trashList) return;
+  trashList.innerHTML = "";
+
+  const hasItems = deleted && deleted.length > 0;
+  if (trashSelectAllRow) trashSelectAllRow.hidden = !hasItems;
+  if (trashSelectAllCb)  { trashSelectAllCb.checked = false; trashSelectAllCb.indeterminate = false; }
+  if (trashDeleteAllBtn) { trashDeleteAllBtn.disabled = true; trashDeleteAllBtn.textContent = t("trashDeleteAllBtn"); }
+
+  if (!hasItems) {
+    trashList.innerHTML = `<p class="trash-empty">${t("trashEmpty")}</p>`;
+    return;
+  }
+
+  deleted.forEach((entry) => {
+    const item = document.createElement("div");
+    item.className = "trash-item";
+
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.className = "trash-item-check";
+    cb.dataset.entryId = String(entry.id);
+    cb.addEventListener("change", updateTrashDeleteBtn);
+
+    const info = document.createElement("div");
+    info.className = "trash-item-info";
+
+    const title = document.createElement("div");
+    title.className = "trash-item-title";
+    title.textContent = entry.note || t("trashNoName");
+
+    const meta = document.createElement("div");
+    meta.className = "trash-item-meta";
+
+    let metaText = "";
+    if (entry.targetDateRaw) {
+      metaText += t("trashDatePrefix") + entry.targetDateRaw;
+    }
+    if (entry.deletedAt) {
+      const d = new Date(entry.deletedAt);
+      const totalWindowMs = 30 * 24 * 60 * 60 * 1000;
+      const remainingMs = totalWindowMs - (Date.now() - d.getTime());
+      const dayMs = 24 * 60 * 60 * 1000;
+      const remainingDays = Math.max(0, Math.floor(remainingMs / dayMs));
+      const remainingHours = Math.max(0, Math.floor((remainingMs % dayMs) / (60 * 60 * 1000)));
+      if (metaText) metaText += t("trashSeparator");
+      metaText += t("trashPermDelete", remainingDays, remainingHours);
+    }
+    meta.textContent = metaText;
+
+    info.appendChild(title);
+    info.appendChild(meta);
+
+    const restoreBtn = document.createElement("button");
+    restoreBtn.className = "trash-restore-btn";
+    restoreBtn.textContent = t("trashRestoreBtn");
+    restoreBtn.addEventListener("click", async () => {
+      restoreBtn.disabled = true;
+      restoreBtn.textContent = t("trashRestoring");
+      await dbRestoreEntry(entry.id);
+      await loadSavedEntriesFromCloud();
+      const deletedNow = await dbFetchDeletedEntries();
+      renderTrashList(deletedNow);
+    });
+
+    item.appendChild(cb);
+    item.appendChild(info);
+    item.appendChild(restoreBtn);
+    trashList.appendChild(item);
+  });
+}
+
+function closeTrashModal() {
+  if (trashModal) trashModal.hidden = true;
+}
+
+if (trashBtn) {
+  trashBtn.addEventListener("click", openTrashModal);
+}
+if (trashCloseBtn) {
+  trashCloseBtn.addEventListener("click", closeTrashModal);
+}
+if (trashSelectAllCb) {
+  trashSelectAllCb.addEventListener("change", () => {
+    const checkboxes = trashList ? trashList.querySelectorAll(".trash-item-check") : [];
+    checkboxes.forEach(c => { c.checked = trashSelectAllCb.checked; });
+    updateTrashDeleteBtn();
+  });
+}
+if (trashDeleteAllBtn) {
+  trashDeleteAllBtn.addEventListener("click", async () => {
+    const checked = trashList ? trashList.querySelectorAll(".trash-item-check:checked") : [];
+    const ids = Array.from(checked).map(c => c.dataset.entryId);
+    if (ids.length === 0) return;
+    const allCount = trashList ? trashList.querySelectorAll(".trash-item-check").length : 0;
+    const msg = ids.length === allCount
+      ? t("trashDeleteAllConfirm")
+      : t("trashDeleteSelectedConfirm", ids.length);
+    if (!confirm(msg)) return;
+    trashDeleteAllBtn.disabled = true;
+    trashDeleteAllBtn.textContent = t("trashDeleting");
+    await dbPermanentDeleteSelected(ids);
+    const deletedNow = await dbFetchDeletedEntries();
+    renderTrashList(deletedNow);
+  });
+}
+if (trashModal) {
+  trashModal.addEventListener("click", (e) => {
+    if (e.target === trashModal) closeTrashModal();
+  });
+}
+
+saveEntryBtn.addEventListener("click", () => {
+  if (resultCard.hidden) {
+    alert(t("calcFirst"));
+    return;
+  }
+
+  const daysHtml = resultText.innerHTML || "";
+  const importance = importanceSelect.value;
+
+  const noteRaw = prompt(t("notePrompt"), "");
+  if (noteRaw === null) {
+    return;
+  }
+
+  const note = noteRaw.trim();
+  if (!note) {
+    alert(t("notePrompt"));
+    return;
+  }
+
+  // قراءة التاريخ الخام المستخدم في الحساب الحالي لدعم إعادة الحساب لاحقًا
+  const rawDateValue = singleDateInput.value || "";
+
+  // في حال كان الوضع الحالي "حتى التاريخ" وهناك تاريخ أساس من آخر حساب "منذ التاريخ"
+  // نحسب الفترة بين التاريخين لبناء جملة: منذ [من] حتى [إلى] تعادل ...
+  let sinceUntilSummary = "";
+  if (mode === "until" && lastSinceBaseRaw && rawDateValue) {
+    const base = new Date(lastSinceBaseRaw + "T00:00:00");
+    const target = new Date(rawDateValue + "T00:00:00");
+    if (!isNaN(base.getTime()) && !isNaN(target.getTime())) {
+      const daysBetween = diffInDays(base, target);
+      const absBetween = Math.abs(daysBetween);
+      const eqBetween = formatEquivDynamic(absBetween, absBetween);
+
+      const fromText = formatGregorian(base) + " م";
+      const toText = formatGregorian(target) + " م";
+      // eqBetween تبدأ بـ "تعادل X من أصل Y" مباشرة
+      const eqText = eqBetween || `تعادل ${absBetween} ${t("dayUnit")}`;
+
+      sinceUntilSummary = `منذ ${fromText} حتى ${toText} ${eqText}`;
+    }
+  }
+
+  const entry = {
+    id: Date.now(),
+    // السطر الأول: "مر / بقي X يوم" مع اللون الأحمر
+    mainText: daysHtml,
+    // السطر الثاني: "ما يعادل ..."
+    equivalentText: resultEquivalent.innerHTML || "",
+    // السطر الثالث: تفاصيل من/إلى
+    detailsText: (resultDetails.innerHTML || "") + (mode === "until" && lastSinceBaseRaw ? `<!--since_base:${lastSinceBaseRaw}-->` : ""),
+    sinceBaseRaw: (mode === "until" && lastSinceBaseRaw) ? lastSinceBaseRaw : "",
+    // حقل قديم للإبقاء على التوافق مع المدد الأقدم
+    remainingText: daysHtml || resultEquivalent.innerHTML,
+    remainingDays: lastDaysValue,
+    remainingIsFuture: lastIsRemaining,
+    targetDate: lastTargetGregorian,
+    sinceUntilSummary,
+    // قيم جديدة لدعم إعادة الحساب الديناميكي
+    targetDateRaw: rawDateValue,
+    modeAtSave: mode,
+    value: 1,
+    importance,
+    note,
+    hidden: false,
+  };
+
+  savedEntries.push(entry);
+  saveSavedEntries();
+  renderSavedEntries();
+  dbSaveEntry(entry);
+
+  // بعد الحفظ، نخفي النتيجة الحالية لنبدأ بتاريخ جديد
+  resultText.textContent = "";
+  resultEquivalent.textContent = "";
+  resultDetails.textContent = "";
+  resultCard.hidden = true;
+  if (resultPlaceholder) {
+    resultPlaceholder.hidden = false;
+  }
+  // مسح التاريخ المختار حتى لا يعيد زر الوضع (منذ/حتى) عرض النتيجة القديمة
+  if (singleDateInput) {
+    singleDateInput.value = "";
+    setTodayIfEmpty();
+  }
+
+  saveState({
+    resultVisible: false,
+    resultText: "",
+    resultEquivalent: "",
+    resultDetails: "",
+  });
+});
+
+// ════════════════════════════════════════════════════════
+//  Custom DatePicker — يستخدم #single-date كقيمة مخفية
+// ════════════════════════════════════════════════════════
+(function initDatePicker() {
+  const hiddenInput  = document.getElementById("single-date");
+  const display      = document.getElementById("dp-display");
+  const displayText  = document.getElementById("dp-display-text");
+  const manualInput  = document.getElementById("dp-manual-input");
+  const popup        = document.getElementById("dp-popup");
+  const prevBtn      = document.getElementById("dp-prev");
+  const nextBtn      = document.getElementById("dp-next");
+  const monthLabel   = document.getElementById("dp-month-label");
+  const yearInput    = document.getElementById("dp-year-input");
+  const daysHeader   = document.getElementById("dp-days-header");
+  const grid         = document.getElementById("dp-grid");
+  if (!hiddenInput || !display || !popup) return;
+
+  const now = new Date();
+  let viewYear  = now.getFullYear();
+  let viewMonth = now.getMonth();
+  let selected  = null; // Date | null
+
+  const MONTHS_AR = ["يناير","فبراير","مارس","أبريل","مايو","يونيو",
+                     "يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
+  const MONTHS_EN = ["Jan","Feb","Mar","Apr","May","Jun",
+                     "Jul","Aug","Sep","Oct","Nov","Dec"];
+  const WDAYS_AR  = ["أح","اث","ثل","أر","خم","جم","سب"];
+  const WDAYS_EN  = ["Su","Mo","Tu","We","Th","Fr","Sa"];
+
+  function isEn() { return typeof getLanguage==="function" && getLanguage()==="en"; }
+
+  function fmtDisplay(d) {
+    if (!d) return isEn() ? "Select a date" : "اختر تاريخاً";
+    const dd = String(d.getDate()).padStart(2,"0");
+    const mm = String(d.getMonth()+1).padStart(2,"0");
+    const yy = d.getFullYear();
+    return isEn() ? `${yy}/${mm}/${dd}` : `${dd}/${mm}/${yy}`;
+  }
+
+  function setSelected(date) {
+    selected = date;
+    displayText.textContent = fmtDisplay(date);
+    manualInput.value = fmtDisplay(date);
+    const yy = date.getFullYear();
+    const mm = String(date.getMonth()+1).padStart(2,"0");
+    const dd = String(date.getDate()).padStart(2,"0");
+    hiddenInput.value = `${yy}-${mm}-${dd}`;
+    hiddenInput.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+
+  function render() {
+    const months = isEn() ? MONTHS_EN : MONTHS_AR;
+    const wdays  = isEn() ? WDAYS_EN  : WDAYS_AR;
+    monthLabel.textContent = months[viewMonth];
+    yearInput.value = viewYear;
+
+    daysHeader.innerHTML = wdays.map(d => `<div class="dp-day-name">${d}</div>`).join("");
+
+    const today = new Date(); today.setHours(0,0,0,0);
+    const firstDow  = new Date(viewYear, viewMonth, 1).getDay();
+    const totalDays = new Date(viewYear, viewMonth+1, 0).getDate();
+    let html = "";
+    for (let i=0; i<firstDow; i++) html += `<div class="dp-cell dp-empty"></div>`;
+    for (let day=1; day<=totalDays; day++) {
+      const d   = new Date(viewYear, viewMonth, day);
+      const isT = d.getTime()===today.getTime();
+      const isS = selected && d.getTime()===selected.getTime();
+      const pad = String(day).padStart(2,"0");
+      const mpad= String(viewMonth+1).padStart(2,"0");
+      html += `<div class="dp-cell dp-day${isT?" dp-today":""}${isS?" dp-selected":""}"
+                    data-iso="${viewYear}-${mpad}-${pad}">${day}</div>`;
+    }
+    grid.innerHTML = html;
+    grid.querySelectorAll(".dp-day").forEach(cell => {
+      cell.addEventListener("click", () => {
+        const [y,m,d] = cell.dataset.iso.split("-").map(Number);
+        setSelected(new Date(y, m-1, d));
+        popup.hidden = true;
+      });
+    });
+  }
+
+  function openPopup() {
+    if (selected) { viewYear=selected.getFullYear(); viewMonth=selected.getMonth(); }
+    popup.hidden = false;
+    render();
+  }
+
+  // فتح/إغلاق عند النقر على العرض
+  display.addEventListener("click", e => { e.stopPropagation(); popup.hidden?openPopup():(popup.hidden=true); });
+  display.addEventListener("keydown", e => { if(e.key==="Enter"||e.key===" "){ e.preventDefault(); openPopup(); } });
+
+  // الإغلاق عند النقر خارجاً
+  document.addEventListener("click", e => {
+    if (!e.target.closest("#single-date-wrapper")) popup.hidden = true;
+  });
+
+  prevBtn.addEventListener("click", e => {
+    e.stopPropagation();
+    if (--viewMonth < 0) { viewMonth=11; viewYear--; }
+    render();
+  });
+  nextBtn.addEventListener("click", e => {
+    e.stopPropagation();
+    if (++viewMonth > 11) { viewMonth=0; viewYear++; }
+    render();
+  });
+
+  yearInput.addEventListener("click", e => e.stopPropagation());
+  yearInput.addEventListener("change", () => {
+    const y = parseInt(yearInput.value);
+    if (y>=1900 && y<=2100) { viewYear=y; render(); }
+  });
+  yearInput.addEventListener("keydown", e => {
+    e.stopPropagation();
+    if (e.key==="Enter") { yearInput.blur(); }
+  });
+
+  // الكتابة اليدوية: يقبل DD/MM/YYYY أو YYYY-MM-DD أو YYYY/MM/DD
+  manualInput.addEventListener("input", () => {
+    // تحويل أرقام عربية-هندية
+    const raw = manualInput.value.replace(/[٠-٩]/g, d => d.charCodeAt(0)-1632).trim();
+    let parsed = null;
+    let m;
+    // DD/MM/YYYY
+    m = raw.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})$/);
+    if (m) { const dt=new Date(+m[3],+m[2]-1,+m[1]); if(!isNaN(dt)&&dt.getMonth()===+m[2]-1) parsed=dt; }
+    // YYYY/MM/DD or YYYY-MM-DD
+    if (!parsed) {
+      m = raw.match(/^(\d{4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})$/);
+      if (m) { const dt=new Date(+m[1],+m[2]-1,+m[3]); if(!isNaN(dt)&&dt.getMonth()===+m[2]-1) parsed=dt; }
+    }
+    if (parsed) {
+      selected=parsed; viewYear=parsed.getFullYear(); viewMonth=parsed.getMonth();
+      displayText.textContent = fmtDisplay(parsed);
+      const yy=parsed.getFullYear(), mm=String(parsed.getMonth()+1).padStart(2,"0"), dd=String(parsed.getDate()).padStart(2,"0");
+      hiddenInput.value=`${yy}-${mm}-${dd}`;
+      hiddenInput.dispatchEvent(new Event("change",{bubbles:true}));
+      if(!popup.hidden) render();
+    }
+  });
+  manualInput.addEventListener("click", e => e.stopPropagation());
+  manualInput.addEventListener("focus", () => { openPopup(); });
+
+  // مزامنة عكسية: عندما يتغير hiddenInput من خارج المنتقي (مثل setTodayIfEmpty)
+  hiddenInput.addEventListener("change", () => {
+    if (!hiddenInput.value) {
+      selected=null;
+      displayText.textContent = isEn()?"Select a date":"اختر تاريخاً";
+      manualInput.value="";
+      return;
+    }
+    const [y,m,d] = hiddenInput.value.split("-").map(Number);
+    const dt = new Date(y,m-1,d);
+    if (!isNaN(dt.getTime())) {
+      // تحديث العرض فقط (تجنب حلقة لا نهائية)
+      if (!selected || selected.getTime()!==dt.getTime()) {
+        selected=dt;
+        displayText.textContent = fmtDisplay(dt);
+        manualInput.value = fmtDisplay(dt);
+      }
+    }
+  });
+
+  // عرض أولي إن كان hiddenInput يحمل قيمة (مثلاً بعد setTodayIfEmpty)
+  if (hiddenInput.value) {
+    const [y,m,d] = hiddenInput.value.split("-").map(Number);
+    const dt = new Date(y,m-1,d);
+    if (!isNaN(dt.getTime())) { selected=dt; displayText.textContent=fmtDisplay(dt); manualInput.value=fmtDisplay(dt); }
+  }
+})();
+
+// ════════════════════════════════════════════════════════
+//  نظام التذكيرات (Notifications)
+// ════════════════════════════════════════════════════════
+
+/** التمرير إلى مدة محددة في القائمة مع وميض التمييز */
+function scrollToEntry(id) {
+  const el = document.getElementById(`entry-item-${id}`);
+  if (!el) return;
+  el.scrollIntoView({ behavior: "smooth", block: "center" });
+  el.classList.remove("nd-flash");
+  void el.offsetWidth; // إعادة تشغيل الأنيميشن
+  el.classList.add("nd-flash");
+  setTimeout(() => el.classList.remove("nd-flash"), 2000);
+}
+
+/** قراءة إعدادات التذكيرات */
+function getNotifPrefs() {
+  try { return JSON.parse(localStorage.getItem("dayCounterNotif") || "{}"); }
+  catch { return {}; }
+}
+
+/** حفظ إعدادات التذكيرات */
+function setNotifPrefs(prefs) {
+  localStorage.setItem("dayCounterNotif", JSON.stringify(prefs));
+}
+
+/** تحديث مظهر زر التذكيرات */
+function refreshNotifBtn() {
+  const btn = document.getElementById("notif-btn");
+  if (!btn) return;
+  const prefs = getNotifPrefs();
+  if (prefs.enabled) {
+    btn.textContent = t("notifBtnOn");
+    btn.className = btn.className.replace("notif-off-btn","") + " notif-on-btn";
+  } else {
+    btn.textContent = t("notifBtnOff");
+    btn.className = btn.className.replace("notif-on-btn","") + " notif-off-btn";
+  }
+}
+
+/** إرسال إشعار واحد */
+function sendOneNotif(title, body, tag) {
+  if (!("Notification" in window) || Notification.permission !== "granted") return;
+  try {
+    const n = new Notification(title, { body, tag, icon: "سنبله.png" });
+    n.onclick = () => { window.focus(); n.close(); };
+  } catch (e) { console.warn("Notification error:", e); }
+}
+
+/** فحص المدد وإرسال التذكيرات إن لزم */
+function checkAndNotify() {
+  const prefs = getNotifPrefs();
+  if (!prefs.enabled) return;
+  if (!("Notification" in window) || Notification.permission !== "granted") return;
+
+  const today = new Date(); today.setHours(0,0,0,0);
+  const todayStr = today.toISOString().split("T")[0];
+  if (prefs.lastNotifDate === todayStr) return; // أُرسل اليوم بالفعل
+
+  const near = (typeof savedEntries !== "undefined" ? savedEntries : []).filter(e => {
+    if (e.modeAtSave !== "until" || e.hidden || !e.targetDateRaw) return false;
+    const tgt = new Date(e.targetDateRaw + "T00:00:00");
+    if (isNaN(tgt)) return false;
+    const d = diffInDays(today, tgt);
+    return d >= 0 && d <= 3;
+  });
+
+  if (near.length === 0) return;
+
+  near.forEach(e => {
+    const tgt  = new Date(e.targetDateRaw + "T00:00:00");
+    const days = diffInDays(today, tgt);
+    const body = days === 0
+      ? t("notifBodyToday").replace("{name}", e.note)
+      : t("notifBodyDays").replace("{n}", days).replace("{name}", e.note);
+    sendOneNotif(t("notifReminderTitle"), body, `entry-notif-${e.id}`);
+  });
+
+  prefs.lastNotifDate = todayStr;
+  setNotifPrefs(prefs);
+}
+
+/** تهيئة زر التذكيرات */
+function initNotifButton() {
+  const btn = document.getElementById("notif-btn");
+  if (!btn) return;
+  refreshNotifBtn();
+
+  btn.addEventListener("click", async () => {
+    const prefs = getNotifPrefs();
+    if (prefs.enabled) {
+      // إيقاف التذكيرات
+      prefs.enabled = false;
+      setNotifPrefs(prefs);
+      refreshNotifBtn();
+      return;
+    }
+    // تشغيل التذكيرات — نطلب الإذن أولاً
+    if (!("Notification" in window)) {
+      alert("المتصفح لا يدعم الإشعارات");
+      return;
+    }
+    if (Notification.permission === "denied") {
+      alert(t("notifPermDenied"));
+      return;
+    }
+    const perm = Notification.permission === "granted"
+      ? "granted"
+      : await Notification.requestPermission();
+    if (perm === "granted") {
+      prefs.enabled = true;
+      prefs.lastNotifDate = null; // أعد الإرسال
+      setNotifPrefs(prefs);
+      refreshNotifBtn();
+      checkAndNotify();
+    } else {
+      alert(t("notifPermDenied"));
+    }
+  });
+}
+
+// تشغيل الفحص عند تحميل الصفحة (بعد جلب المدد)
+// يُستدعى من dbFetchEntries عبر setTimeout
+(function scheduleNotifCheck() {
+  setTimeout(() => {
+    initNotifButton();
+    checkAndNotify();
+    // فحص دوري كل ساعة
+    setInterval(checkAndNotify, 60 * 60 * 1000);
+  }, 3000);
+})();

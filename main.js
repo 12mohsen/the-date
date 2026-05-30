@@ -87,6 +87,25 @@ let authMode = "login"; // login | signup | forgot
 let savedEntries = [];
 let mode = "since"; // since | until
 let importanceFilter = "all"; // all | normal | important | very-important
+let searchQuery = ""; // نص البحث الحالي
+
+// ─── تطبيع النص العربي: إزالة التشكيل وتوحيد الهمزات ───
+function normalizeArabic(str) {
+  if (!str) return "";
+  return str
+    // إزالة كل التشكيل
+    .replace(/[ؐ-ًؚ-ٰٟۖ-ۜ۟-۪ۤۧۨ-ۭ࣓-ࣿ]/g, "")
+    // توحيد الألفات (أ إ آ ٱ) → ا
+    .replace(/[آأإٱ]/g, "ا")
+    // توحيد التاء المربوطة → هـ
+    .replace(/ة/g, "ه")
+    // توحيد الألف المقصورة → ي
+    .replace(/ى/g, "ي")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
 let lastDaysValue = null; // القيمة العددية للأيام في آخر حساب
 let lastIsRemaining = false; // هل كانت الحالة "بقي" (موعد قادم)
 let lastTargetGregorian = ""; // التاريخ الهدف (ميلادي) لآخر حساب
@@ -392,9 +411,17 @@ function renderSavedEntries() {
 
   savedList.innerHTML = "";
 
+  const normalizedQuery = normalizeArabic(searchQuery);
+
   const visibleEntries = savedEntries.filter((entry) => {
-    if (importanceFilter === "all") return true;
-    return entry.importance === importanceFilter;
+    // فلتر الأهمية
+    if (importanceFilter !== "all" && entry.importance !== importanceFilter) return false;
+    // فلتر البحث
+    if (normalizedQuery) {
+      const noteNorm = normalizeArabic(entry.note || "");
+      if (!noteNorm.includes(normalizedQuery)) return false;
+    }
+    return true;
   });
 
   const today = new Date();
@@ -1629,6 +1656,15 @@ if (filterButtons && filterButtons.length) {
 
       renderSavedEntries();
     });
+  });
+}
+
+// ── صندوق البحث ──
+const searchInput = document.getElementById("search-input");
+if (searchInput) {
+  searchInput.addEventListener("input", () => {
+    searchQuery = searchInput.value;
+    renderSavedEntries();
   });
 }
 

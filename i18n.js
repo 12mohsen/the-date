@@ -85,6 +85,7 @@ const TRANSLATIONS = {
     impVeryImportant:   "مهم جدًا ⭐⭐",
     saveEntryBtn:       "حفظ المدة الحالية في الجدول",
     trashBtn:           "🗑 سلة المحذوفات",
+    searchPlaceholder:  "🔍 بحث في المدد المحفوظة...",
     filterByImportance: "تصفية حسب الأهمية:",
     filterAll:          "الكل",
     filterNormal:       "عادي",
@@ -243,6 +244,7 @@ const TRANSLATIONS = {
     impVeryImportant:   "Very important ⭐⭐",
     saveEntryBtn:       "Save current duration",
     trashBtn:           "🗑 Trash",
+    searchPlaceholder:  "🔍 Search saved entries...",
     filterByImportance: "Filter by importance:",
     filterAll:          "All",
     filterNormal:       "Normal",
@@ -375,6 +377,10 @@ function applyLanguageToDOM() {
   document.querySelectorAll("[data-i18n-aria]").forEach((el) => {
     const key = el.getAttribute("data-i18n-aria");
     el.setAttribute("aria-label", t(key));
+  });
+  document.querySelectorAll("[data-i18n-placeholder]").forEach((el) => {
+    const key = el.getAttribute("data-i18n-placeholder");
+    el.setAttribute("placeholder", t(key));
   });
 
   // زر تبديل اللغة يعرض الرمز المعاكس

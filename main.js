@@ -247,7 +247,7 @@ function formatYearsAndDays(days) {
 //  تنسيق الأيام بصيغة "تعادل X شهر و Y يوم من أصل 9 أشهر"
 //  الشهر = 30 يوم تقريباً — يرجع HTML: أخضر للمتبقي، ذهبي للإجمالي
 // ─────────────────────────────────────────────────────
-function formatEquivDynamic(remainDays, totalDays) {
+function formatEquivDynamic(remainDays, totalDays, hideTotalIfEqual) {
   // تنسيق المتبقي: شهور وأيام
   function toMonthsDays(d) {
     const n = Math.abs(Math.round(d));
@@ -294,7 +294,10 @@ function formatEquivDynamic(remainDays, totalDays) {
   const isEn = (typeof getLanguage === "function" && getLanguage() === "en");
   const equivWord = isEn ? "Equivalent to" : "تعادل";
   const ofWord    = isEn ? "out of"        : "من أصل";
-  // دائماً نعرض "تعادل ... من أصل ..." حتى لو تساوى المتبقي والإجمالي
+  // إذا تساوى المتبقي والإجمالي ووضع "مضى" لا نعرض "من أصل"
+  if (hideTotalIfEqual && rem === tot) {
+    return `<span class="details-equivalent">${equivWord} ${toTotalLabel(rem)}</span>`;
+  }
   return `<span class="details-equivalent">${equivWord} ${toTotalLabel(rem)}</span> <span class="details-gold">${ofWord} ${toTotalLabel(tot)}</span>`;
 }
 
@@ -615,7 +618,7 @@ function renderSavedEntries() {
       }
 
       if (!dynamicEquivLine) {
-        dynamicEquivLine = formatEquivDynamic(abs, _totalForEquiv);
+        dynamicEquivLine = formatEquivDynamic(abs, _totalForEquiv, entry.modeAtSave === 'since');
       }
       blinkDays = abs;
 
@@ -671,7 +674,7 @@ function renderSavedEntries() {
           }
         }
         const _toDate    = entry.modeAtSave === "since" ? today : targetForCalc;
-        const _equivFull = formatEquivDynamic(_equivRemain, _equivTotal);
+        const _equivFull = formatEquivDynamic(_equivRemain, _equivTotal, entry.modeAtSave === 'since');
         if (_equivFull) {
           const _fromFmt = formatBothCalendars(_fromDate);
           const _toFmt   = formatBothCalendars(_toDate);
@@ -1027,7 +1030,7 @@ function calculate() {
         if (_calcTot > 0) _calcTotal = _calcTot;
       }
     }
-    resultEquivalent.innerHTML = formatEquivDynamic(abs, _calcTotal);
+    resultEquivalent.innerHTML = formatEquivDynamic(abs, _calcTotal, mode === 'since');
 
     if (mode === "since") {
       resultDetails.innerHTML = t("joinSincePast", abs, formatBothCalendars(target), formatBothCalendars(today));
@@ -1052,7 +1055,7 @@ function calculate() {
         if (!isNaN(base.getTime()) && !isNaN(untilDate.getTime())) {
           const betweenDays = diffInDays(base, untilDate);
           const absBetween = Math.abs(betweenDays);
-          const eqBetween = formatEquivDynamic(abs, absBetween);
+          const eqBetween = formatEquivDynamic(abs, absBetween, false);
 
           const fromText = formatGregorian(base) + " م";
           const toText = formatGregorian(untilDate) + " م";
@@ -1835,7 +1838,7 @@ saveEntryBtn.addEventListener("click", () => {
     if (!isNaN(base.getTime()) && !isNaN(target.getTime())) {
       const daysBetween = diffInDays(base, target);
       const absBetween = Math.abs(daysBetween);
-      const eqBetween = formatEquivDynamic(absBetween, absBetween);
+      const eqBetween = formatEquivDynamic(absBetween, absBetween, false);
 
       const fromText = formatGregorian(base) + " م";
       const toText = formatGregorian(target) + " م";

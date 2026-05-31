@@ -571,6 +571,7 @@ function renderSavedEntries() {
       } else if (entry.modeAtSave === "until") {
         if (targetForCalc < today) {
           dynamicMainLine = `<span class="result-verb-red" style="color: #22c55e;">${t("verbEnded")}</span>`;
+          item.classList.add("ended-border");
           dynamicEquivLine = t("daysPassedSinceEnd", abs);
         } else if (targetForCalc === today) {
           dynamicMainLine = `<span class="result-verb-red" style="color: #f59e0b;">${t("verbToday")}</span>`;

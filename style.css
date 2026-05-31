@@ -1435,3 +1435,13 @@ body.light-theme .share-toast {
   40%      { box-shadow:0 0 0 3px #f97316; border-color:#f97316; }
 }
 .nd-flash { animation: ndFlash .6s ease 3; }
+
+/* ===== إطار مميّز للمدد المنتهية ===== */
+.saved-item.ended-border {
+  border: 2px solid #22c55e !important; /* أخضر — يدل على الانتهاء */
+  box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.25);
+}
+body.light-theme .saved-item.ended-border {
+  border-color: #16a34a !important;
+  box-shadow: 0 0 0 1px rgba(22, 163, 74, 0.25);
+}

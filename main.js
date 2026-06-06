@@ -1414,6 +1414,10 @@ function handleLogout() {
   clearSession();
   savedEntries = [];
   if (savedList) savedList.innerHTML = "";
+  // إخفاء شريط المواعيد القريبة وعدد المدد
+  const ndBar = document.getElementById("near-deadline-bar");
+  if (ndBar) { ndBar.hidden = true; ndBar.innerHTML = ""; }
+  if (savedCountEl) savedCountEl.textContent = "";
   if (authUsername) authUsername.value = "";
   if (authPassword) authPassword.value = "";
   if (authHint) authHint.value = "";

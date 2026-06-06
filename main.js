@@ -88,6 +88,7 @@ let savedEntries = [];
 let mode = "since"; // since | until
 let importanceFilter = "all"; // all | normal | important | very-important
 let searchQuery = ""; // نص البحث الحالي
+let guestMode = false; // true = تصفح بدون تسجيل دخول (تُطلب المصادقة عند الحفظ)
 
 // ─── تطبيع النص العربي: إزالة التشكيل وتوحيد الهمزات ───
 function normalizeArabic(str) {
@@ -1095,6 +1096,27 @@ function showMainApp() {
   if (mainApp) mainApp.hidden = false;
 }
 
+// عرض شاشة المصادقة كـ overlay فوق التطبيق (بدون إخفائه)
+function showAuthOverlay() {
+  if (authScreen) authScreen.hidden = false;
+}
+
+// إخفاء user-bar وإظهار guest-bar (وضع الضيف)
+function updateGuestBar() {
+  const userBar = document.getElementById("user-bar");
+  const guestBar = document.getElementById("guest-bar");
+  if (userBar)  userBar.hidden  = true;
+  if (guestBar) guestBar.hidden = false;
+}
+
+// إظهار user-bar وإخفاء guest-bar (بعد تسجيل الدخول)
+function restoreUserBar() {
+  const userBar = document.getElementById("user-bar");
+  const guestBar = document.getElementById("guest-bar");
+  if (userBar)  userBar.hidden  = false;
+  if (guestBar) guestBar.hidden = true;
+}
+
 function setAuthMode(newMode) {
   authMode = newMode;
   const isForgot = (newMode === "forgot");
@@ -1310,9 +1332,11 @@ function clearSession() {
 }
 
 async function startAppForUser(username) {
+  guestMode = false;
   setCurrentUsername(username);
   persistSession(username);
   if (userNameEl) userNameEl.textContent = username;
+  restoreUserBar();
   showMainApp();
 
   // مسح أي بيانات سابقة من localStorage لمنع تسرّب بيانات حساب آخر
@@ -1404,7 +1428,19 @@ function handleLogout() {
   if (authPassword) authPassword.value = "";
   if (authHint) authHint.value = "";
   setAuthMode("login");
-  showAuthScreen();
+  // العودة لوضع الضيف بدلاً من إخفاء التطبيق
+  guestMode = true;
+  updateGuestBar();
+}
+
+// ربط زر تسجيل الدخول للضيف
+const guestLoginBtn = document.getElementById("guest-login-btn");
+if (guestLoginBtn) {
+  guestLoginBtn.addEventListener("click", () => {
+    setAuthMode("login");
+    loadRememberedCredentials();
+    showAuthOverlay();
+  });
 }
 
 // ربط أحداث المصادقة
@@ -1607,10 +1643,13 @@ dbKeepAlivePing();
     console.error("initApp error:", e);
     clearSession();
   }
-  // لا توجد جلسة → اعرض شاشة تسجيل الدخول
-  setAuthMode("login");
-  loadRememberedCredentials();
-  showAuthScreen();
+  // لا توجد جلسة → اعرض التطبيق بوضع الضيف (تُطلب المصادقة عند الحفظ)
+  guestMode = true;
+  restoreState();
+  loadSavedEntries();
+  renderSavedEntries();
+  showMainApp();
+  updateGuestBar();
 })();
 
 if (modeSinceBtn && modeUntilBtn) {
@@ -1808,6 +1847,17 @@ if (trashModal) {
 }
 
 saveEntryBtn.addEventListener("click", () => {
+  // إذا لم يكن المستخدم مسجلاً، اعرض شاشة تسجيل الدخول
+  if (!currentUsername) {
+    setAuthMode("login");
+    loadRememberedCredentials();
+    showAuthOverlay();
+    setTimeout(() => {
+      showAuthError("🔒 سجّل دخولك أو أنشئ حساباً لحفظ المدة في السحابة");
+    }, 50);
+    return;
+  }
+
   if (resultCard.hidden) {
     alert(t("calcFirst"));
     return;

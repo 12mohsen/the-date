@@ -1445,3 +1445,23 @@ body.light-theme .saved-item.ended-border {
   border-color: #16a34a !important;
   box-shadow: 0 0 0 1px rgba(22, 163, 74, 0.25);
 }
+
+/* ── زر تسجيل الدخول في وضع الزائر ── */
+.guest-login-btn {
+  padding: 6px 16px;
+  background: linear-gradient(135deg, #6366f1, #4f46e5);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s, transform 0.1s;
+}
+.guest-login-btn:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+body.light-theme .guest-login-btn {
+  background: linear-gradient(135deg, #4f46e5, #3730a3);
+}

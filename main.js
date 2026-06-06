@@ -63,6 +63,7 @@ const backToLoginBtn    = document.getElementById("back-to-login-btn");
 const userNameEl        = document.getElementById("user-name");
 const logoutBtn         = document.getElementById("logout-btn");
 const changePwBtn       = document.getElementById("change-pw-btn");
+const loginGuestBtn     = document.getElementById("login-guest-btn");
 const changePwModal     = document.getElementById("change-pw-modal");
 const changePwCloseBtn  = document.getElementById("change-pw-close-btn");
 const changePwForm      = document.getElementById("change-pw-form");
@@ -88,7 +89,6 @@ let savedEntries = [];
 let mode = "since"; // since | until
 let importanceFilter = "all"; // all | normal | important | very-important
 let searchQuery = ""; // نص البحث الحالي
-let guestMode = false; // true = تصفح بدون تسجيل دخول (تُطلب المصادقة عند الحفظ)
 
 // ─── تطبيع النص العربي: إزالة التشكيل وتوحيد الهمزات ───
 function normalizeArabic(str) {
@@ -1096,25 +1096,16 @@ function showMainApp() {
   if (mainApp) mainApp.hidden = false;
 }
 
-// عرض شاشة المصادقة كـ overlay فوق التطبيق (بدون إخفائه)
-function showAuthOverlay() {
-  if (authScreen) authScreen.hidden = false;
-}
-
-// إخفاء user-bar وإظهار guest-bar (وضع الضيف)
-function updateGuestBar() {
-  const userBar = document.getElementById("user-bar");
-  const guestBar = document.getElementById("guest-bar");
-  if (userBar)  userBar.hidden  = true;
-  if (guestBar) guestBar.hidden = false;
-}
-
-// إظهار user-bar وإخفاء guest-bar (بعد تسجيل الدخول)
-function restoreUserBar() {
-  const userBar = document.getElementById("user-bar");
-  const guestBar = document.getElementById("guest-bar");
-  if (userBar)  userBar.hidden  = false;
-  if (guestBar) guestBar.hidden = true;
+// ── إظهار / إخفاء عناصر شريط المستخدم حسب حالة تسجيل الدخول ──
+function updateUserBar(isLoggedIn) {
+  const userIconEl    = document.getElementById("user-icon-el");
+  const userWelcomeEl = document.getElementById("user-welcome-el");
+  if (userIconEl)    userIconEl.hidden    = !isLoggedIn;
+  if (userWelcomeEl) userWelcomeEl.hidden = !isLoggedIn;
+  if (userNameEl)    userNameEl.hidden    = !isLoggedIn;
+  if (changePwBtn)   changePwBtn.hidden   = !isLoggedIn;
+  if (logoutBtn)     logoutBtn.hidden     = !isLoggedIn;
+  if (loginGuestBtn) loginGuestBtn.hidden = isLoggedIn;
 }
 
 function setAuthMode(newMode) {
@@ -1332,12 +1323,11 @@ function clearSession() {
 }
 
 async function startAppForUser(username) {
-  guestMode = false;
   setCurrentUsername(username);
   persistSession(username);
   if (userNameEl) userNameEl.textContent = username;
-  restoreUserBar();
   showMainApp();
+  updateUserBar(true);
 
   // مسح أي بيانات سابقة من localStorage لمنع تسرّب بيانات حساب آخر
   try { localStorage.removeItem(STORAGE_SAVED_KEY); } catch (e) {}
@@ -1428,23 +1418,18 @@ function handleLogout() {
   if (authPassword) authPassword.value = "";
   if (authHint) authHint.value = "";
   setAuthMode("login");
-  // العودة لوضع الضيف بدلاً من إخفاء التطبيق
-  guestMode = true;
-  updateGuestBar();
-}
-
-// ربط زر تسجيل الدخول للضيف
-const guestLoginBtn = document.getElementById("guest-login-btn");
-if (guestLoginBtn) {
-  guestLoginBtn.addEventListener("click", () => {
-    setAuthMode("login");
-    loadRememberedCredentials();
-    showAuthOverlay();
-  });
+  updateUserBar(false);
+  showMainApp();
 }
 
 // ربط أحداث المصادقة
 if (authForm) authForm.addEventListener("submit", handleAuthSubmit);
+
+// زر تسجيل الدخول للزوار
+if (loginGuestBtn) loginGuestBtn.addEventListener("click", () => {
+  setAuthMode("login");
+  showAuthScreen();
+});
 if (authRememberCb) {
   authRememberCb.addEventListener("change", () => {
     if (!authRememberCb.checked) clearRememberedCredentials();
@@ -1643,13 +1628,12 @@ dbKeepAlivePing();
     console.error("initApp error:", e);
     clearSession();
   }
-  // لا توجد جلسة → اعرض التطبيق بوضع الضيف (تُطلب المصادقة عند الحفظ)
-  guestMode = true;
+  // لا توجد جلسة → اعرض التطبيق بوضع الزائر
   restoreState();
-  loadSavedEntries();
-  renderSavedEntries();
+  setAuthMode("login");
+  loadRememberedCredentials();
+  updateUserBar(false);
   showMainApp();
-  updateGuestBar();
 })();
 
 if (modeSinceBtn && modeUntilBtn) {
@@ -1847,14 +1831,10 @@ if (trashModal) {
 }
 
 saveEntryBtn.addEventListener("click", () => {
-  // إذا لم يكن المستخدم مسجلاً، اعرض شاشة تسجيل الدخول
+  // وضع الزائر: اطلب تسجيل الدخول قبل الحفظ
   if (!currentUsername) {
     setAuthMode("login");
-    loadRememberedCredentials();
-    showAuthOverlay();
-    setTimeout(() => {
-      showAuthError("🔒 سجّل دخولك أو أنشئ حساباً لحفظ المدة في السحابة");
-    }, 50);
+    showAuthScreen();
     return;
   }
 

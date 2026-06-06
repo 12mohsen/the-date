@@ -83,7 +83,7 @@
     </div>
   </div>
 
-  <div class="app" id="main-app" hidden>
+  <div class="app" id="main-app">
     <header class="app-header">
       <div class="header-controls">
         <button id="theme-toggle" class="theme-toggle-btn" data-i18n-aria="themeToggleAria" aria-label="تبديل ألوان الواجهة">
@@ -92,23 +92,17 @@
         <button id="lang-toggle" class="lang-toggle-btn" type="button" title="Switch language">EN</button>
       </div>
 
-      <div id="user-bar" class="user-bar" hidden>
-        <span class="user-icon">👤</span>
-        <span class="user-welcome" data-i18n="welcome">مرحباً،</span>
+      <div id="user-bar" class="user-bar">
+        <span class="user-icon" id="user-icon-el">👤</span>
+        <span class="user-welcome" id="user-welcome-el" data-i18n="welcome">مرحباً،</span>
         <span id="user-name" class="user-name"></span>
         <button id="change-pw-btn" class="change-pw-btn" type="button" data-i18n="changePwBtn">🔑 تغيير كلمة المرور</button>
         <button id="share-btn" class="change-pw-btn share-btn" type="button" data-i18n="shareBtn">🔗 مشاركة</button>
         <button id="logout-btn" class="logout-btn" type="button" data-i18n="logoutBtn" data-i18n-title="logoutBtn" title="تسجيل الخروج">
           تسجيل الخروج
         </button>
-      </div>
-
-      <!-- شريط الضيف — يظهر عند فتح التطبيق بدون تسجيل دخول -->
-      <div id="guest-bar" class="user-bar">
-        <button id="guest-login-btn" class="logout-btn" type="button"
-          style="background:rgba(59,130,246,0.15);border:1px solid #3b82f6;color:#93c5fd;border-radius:8px;padding:6px 14px;cursor:pointer;font-size:0.85rem;">
-          👤 تسجيل الدخول / إنشاء حساب
-        </button>
+        <!-- زر تسجيل الدخول للزوار — يُعرض فقط في وضع الزائر -->
+        <button id="login-guest-btn" class="guest-login-btn" type="button">👤 تسجيل الدخول</button>
       </div>
 
       <h1 data-i18n="appTitle">عداد الأيام</h1>

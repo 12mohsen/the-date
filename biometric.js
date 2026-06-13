@@ -1,136 +1,129 @@
 // ============================================================
-//  biometric.js — تسجيل الدخول بالبصمة / Face ID (WebAuthn)
-//  النسخة 3 — الزر يظهر دائماً على أي جهاز يدعم WebAuthn
+//  biometric.js — دخول سريع بـ PIN (6 أرقام)
+//  يعمل داخل WebView (appcreator24) وعلى المتصفحات العادية
+//
+//  الآلية:
+//  • بعد الدخول بكلمة المرور: زر "تفعيل الدخول السريع"
+//  • المستخدم يختار PIN من 6 أرقام
+//  • عند فتح التطبيق مجدداً: يظهر لوحة PIN مباشرة
+//  • PIN مشفَّر بـ SHA-256 مع salt عشوائي في localStorage
 // ============================================================
 
 (function () {
   "use strict";
 
-  const BIO_USER_KEY       = "dayCounterBioUser";
-  const BIO_CRED_KEY       = "dayCounterBioCredId";
-  const BIO_REGISTERED_KEY = "dayCounterBioRegistered";
+  // ── مفاتيح التخزين ──
+  const PIN_USER_KEY = "dayCounterPinUser";
+  const PIN_HASH_KEY = "dayCounterPinHash";
+  const PIN_SALT_KEY = "dayCounterPinSalt";
+  const PIN_ON_KEY   = "dayCounterPinEnabled";
 
-  // ── Base64url ↔ ArrayBuffer (آمن على الموبايل) ──
-  function bufToB64url(buf) {
-    const bytes = new Uint8Array(buf);
-    let binary = "";
-    for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
-    return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
-  }
-  function b64urlToBuf(b64url) {
-    let b64 = b64url.replace(/-/g, "+").replace(/_/g, "/");
-    while (b64.length % 4) b64 += "=";
-    const binary = atob(b64);
-    const buf = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) buf[i] = binary.charCodeAt(i);
-    return buf.buffer;
+  // ── تشفير PIN ──
+  async function hashPin(pin, salt) {
+    const data = new TextEncoder().encode(salt + pin);
+    const buf  = await crypto.subtle.digest("SHA-256", data);
+    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("");
   }
 
-  // ── rpId: لا نُرسله على localhost/file ──
-  function getRpId() {
-    const host = location.hostname;
-    if (!host || host === "localhost" || host === "127.0.0.1") return null;
-    return host;
+  function randomSalt() {
+    return Array.from(crypto.getRandomValues(new Uint8Array(16)))
+      .map(b => b.toString(16).padStart(2, "0")).join("");
   }
 
-  // ── فحص WebAuthn فقط (بدون فحص platform authenticator) ──
-  // ★ نُزيل isPlatformAuthAvailable لأنه يرجع false كذباً على كثير من الموبايل
-  function isBioSupported() {
-    return !!(
-      window.PublicKeyCredential &&
-      navigator.credentials &&
-      typeof navigator.credentials.create === "function" &&
-      typeof navigator.credentials.get === "function"
-    );
+  // ── حالة ──
+  function isPinEnabled() {
+    return localStorage.getItem(PIN_ON_KEY) === "1" &&
+           !!localStorage.getItem(PIN_USER_KEY) &&
+           !!localStorage.getItem(PIN_HASH_KEY);
   }
 
-  function isBioRegistered() {
-    return localStorage.getItem(BIO_REGISTERED_KEY) === "1" &&
-           !!localStorage.getItem(BIO_USER_KEY) &&
-           !!localStorage.getItem(BIO_CRED_KEY);
+  function removePin() {
+    [PIN_USER_KEY, PIN_HASH_KEY, PIN_SALT_KEY, PIN_ON_KEY].forEach(k => localStorage.removeItem(k));
   }
 
-  // ── تسجيل البصمة ──
-  async function enrollBiometric(username) {
-    const challenge   = crypto.getRandomValues(new Uint8Array(32));
-    const userIdBytes = new TextEncoder().encode(username);
-    const rpId        = getRpId();
-
-    const options = {
-      challenge,
-      rp: { name: "عداد الأيام", ...(rpId ? { id: rpId } : {}) },
-      user: { id: userIdBytes, name: username, displayName: username },
-      pubKeyCredParams: [
-        { alg: -7,   type: "public-key" },
-        { alg: -257, type: "public-key" },
-      ],
-      authenticatorSelection: {
-        authenticatorAttachment: "platform",
-        userVerification: "preferred",   // ★ preferred بدل required — أكثر توافقاً
-        residentKey: "preferred",
-        requireResidentKey: false,
-      },
-      timeout: 120000,
-      attestation: "none",
-    };
-
-    try {
-      const credential = await navigator.credentials.create({ publicKey: options });
-      if (!credential) return { ok: false, error: "cancelled" };
-      localStorage.setItem(BIO_USER_KEY,       username);
-      localStorage.setItem(BIO_CRED_KEY,       bufToB64url(credential.rawId));
-      localStorage.setItem(BIO_REGISTERED_KEY, "1");
-      return { ok: true };
-    } catch (err) {
-      console.warn("[Biometric] enroll:", err.name, err.message);
-      if (err.name === "NotAllowedError")   return { ok: false, error: "denied" };
-      if (err.name === "NotSupportedError") return { ok: false, error: "unsupported" };
-      if (err.name === "InvalidStateError") return { ok: false, error: "already_registered" };
-      return { ok: false, error: err.message || err.name };
-    }
-  }
-
-  // ── التحقق بالبصمة ──
-  async function verifyBiometric() {
-    const credIdB64url = localStorage.getItem(BIO_CRED_KEY);
-    if (!credIdB64url) return { ok: false, error: "no_credential" };
-
-    const challenge = crypto.getRandomValues(new Uint8Array(32));
-    const rpId      = getRpId();
-
-    const options = {
-      challenge,
-      ...(rpId ? { rpId } : {}),
-      allowCredentials: [{
-        id: b64urlToBuf(credIdB64url),
-        type: "public-key",
-        // ★ لا transports — أوسع توافق
-      }],
-      userVerification: "preferred",
-      timeout: 120000,
-    };
-
-    try {
-      const assertion = await navigator.credentials.get({ publicKey: options });
-      if (!assertion) return { ok: false, error: "cancelled" };
-      return { ok: true };
-    } catch (err) {
-      console.warn("[Biometric] verify:", err.name, err.message);
-      if (err.name === "NotAllowedError") return { ok: false, error: "denied" };
-      return { ok: false, error: err.message || err.name };
-    }
-  }
-
-  function removeBioRegistration() {
-    localStorage.removeItem(BIO_USER_KEY);
-    localStorage.removeItem(BIO_CRED_KEY);
-    localStorage.removeItem(BIO_REGISTERED_KEY);
-  }
-
-  // ── CSS ──
+  // ════════════════════════════════════════════
+  //  CSS
+  // ════════════════════════════════════════════
   function injectStyles() {
     if (document.getElementById("bio-styles")) return;
     const css = `
+      /* ── لوحة PIN المنبثقة ── */
+      .pin-overlay {
+        position: fixed; inset: 0; z-index: 9999;
+        background: rgba(0,0,0,0.7);
+        display: flex; align-items: center; justify-content: center;
+        backdrop-filter: blur(4px);
+      }
+      .pin-box {
+        background: var(--color-card, #1e1e2e);
+        border: 1px solid var(--color-border, rgba(255,255,255,0.12));
+        border-radius: 20px;
+        padding: 28px 24px 20px;
+        width: min(340px, 92vw);
+        display: flex; flex-direction: column; align-items: center; gap: 16px;
+        font-family: inherit;
+        box-shadow: 0 8px 40px rgba(0,0,0,0.5);
+      }
+      .pin-title {
+        font-size: 1.1rem; font-weight: 700;
+        color: var(--color-text, #fff);
+        margin: 0;
+      }
+      .pin-subtitle {
+        font-size: 0.82rem; color: var(--color-text-secondary, #9ca3af);
+        margin: -8px 0 0; text-align: center;
+      }
+      /* نقاط العرض */
+      .pin-dots {
+        display: flex; gap: 12px; margin: 4px 0;
+      }
+      .pin-dot {
+        width: 14px; height: 14px; border-radius: 50%;
+        border: 2px solid var(--color-accent, #6366f1);
+        background: transparent;
+        transition: background 0.15s;
+      }
+      .pin-dot.filled {
+        background: var(--color-accent, #6366f1);
+      }
+      /* شبكة الأرقام */
+      .pin-grid {
+        display: grid; grid-template-columns: repeat(3, 1fr);
+        gap: 10px; width: 100%;
+      }
+      .pin-key {
+        height: 58px; border-radius: 12px; border: none;
+        background: var(--color-surface, rgba(255,255,255,0.07));
+        color: var(--color-text, #fff);
+        font-size: 1.4rem; font-weight: 600;
+        cursor: pointer; touch-action: manipulation;
+        -webkit-tap-highlight-color: transparent;
+        transition: background 0.12s, transform 0.08s;
+        display: flex; align-items: center; justify-content: center;
+        font-family: inherit;
+      }
+      .pin-key:active { background: var(--color-accent, #6366f1); transform: scale(0.93); }
+      .pin-key.pin-del { font-size: 1.1rem; }
+      .pin-key.pin-enter {
+        background: var(--color-accent, #6366f1); color: #fff;
+        font-size: 0.9rem;
+      }
+      .pin-key.pin-enter:active { filter: brightness(0.85); }
+      .pin-key:disabled { opacity: 0.4; }
+      /* رسالة ── */
+      .pin-msg {
+        font-size: 0.82rem; min-height: 18px; text-align: center;
+        color: #ef4444;
+      }
+      /* زر الدخول بالحساب ──  */
+      .pin-alt-btn {
+        background: none; border: none; color: var(--color-accent, #6366f1);
+        font-size: 0.82rem; cursor: pointer; text-decoration: underline;
+        font-family: inherit; padding: 0;
+        -webkit-tap-highlight-color: transparent;
+      }
+
+      /* ── زر في شاشة الدخول ── */
       .bio-login-btn {
         display: flex; align-items: center; justify-content: center;
         gap: 8px; width: 100%; padding: 13px; margin-top: 10px;
@@ -143,9 +136,10 @@
       .bio-login-btn:hover, .bio-login-btn:active {
         background: var(--color-accent, #6366f1); color: #fff;
       }
-      .bio-login-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-      .bio-login-btn .bio-icon { font-size: 1.4rem; line-height: 1; }
+      .bio-login-btn:disabled { opacity: 0.5; }
+      .bio-login-btn .bio-icon { font-size: 1.3rem; }
 
+      /* ── زر تفعيل/إلغاء في شريط المستخدم ── */
       .bio-enroll-btn {
         display: inline-flex; align-items: center; gap: 5px;
         padding: 5px 12px; border-radius: 8px; border: none;
@@ -159,21 +153,22 @@
       .bio-enroll-btn.bio-remove-btn:hover,
       .bio-enroll-btn.bio-remove-btn:active { background: rgba(239,68,68,0.22); }
 
-      .bio-msg {
-        font-size: 0.82rem; text-align: center; margin-top: 5px;
-        color: var(--color-text-secondary, #9ca3af); min-height: 18px;
-      }
-      .bio-msg.bio-success { color: #22c55e; }
-      .bio-msg.bio-error   { color: #ef4444; }
-
       .bio-divider {
         display: flex; align-items: center; gap: 8px;
         margin: 12px 0 0; color: var(--color-text-secondary, #9ca3af); font-size: 0.82rem;
       }
       .bio-divider::before, .bio-divider::after {
-        content: ""; flex: 1; height: 1px;
+        content:""; flex:1; height:1px;
         background: var(--color-border, rgba(255,255,255,0.12));
       }
+
+      /* اهتزاز عند الخطأ */
+      @keyframes pin-shake {
+        0%,100%{transform:translateX(0)}
+        20%,60%{transform:translateX(-8px)}
+        40%,80%{transform:translateX(8px)}
+      }
+      .pin-shake { animation: pin-shake 0.35s ease; }
     `;
     const el = document.createElement("style");
     el.id = "bio-styles";
@@ -181,13 +176,176 @@
     document.head.appendChild(el);
   }
 
-  // ── عناصر شاشة الدخول ──
+  // ════════════════════════════════════════════
+  //  لوحة PIN المنبثقة (للتسجيل أو للتحقق)
+  //  mode: "register" | "verify"
+  //  resolve يستقبل: { ok, pin? }
+  // ════════════════════════════════════════════
+  function showPinPad(mode, subtitle) {
+    return new Promise(resolve => {
+      // إزالة أي لوحة سابقة
+      document.getElementById("pin-overlay-el")?.remove();
+
+      const pinLen = 6;
+      let entered  = "";
+
+      const overlay = document.createElement("div");
+      overlay.className = "pin-overlay";
+      overlay.id = "pin-overlay-el";
+
+      overlay.innerHTML = `
+        <div class="pin-box">
+          <p class="pin-title">${mode === "register" ? "🔐 اختر رمز الدخول السريع" : "👆 الدخول السريع"}</p>
+          <p class="pin-subtitle">${subtitle || (mode === "register" ? "أدخل 6 أرقام كرمز دخول سريع" : "أدخل رمز الـ 6 أرقام")}</p>
+          <div class="pin-dots" id="pin-dots">
+            ${Array(pinLen).fill('<div class="pin-dot"></div>').join("")}
+          </div>
+          <div class="pin-grid" id="pin-grid">
+            ${[1,2,3,4,5,6,7,8,9].map(n=>`<button class="pin-key" data-n="${n}">${n}</button>`).join("")}
+            <button class="pin-key pin-del" id="pin-del-btn">⌫</button>
+            <button class="pin-key" data-n="0">0</button>
+            <button class="pin-key pin-enter" id="pin-enter-btn" disabled>✓</button>
+          </div>
+          <p class="pin-msg" id="pin-msg"></p>
+          <button class="pin-alt-btn" id="pin-alt-btn">
+            ${mode === "register" ? "إلغاء" : "دخول بكلمة المرور"}
+          </button>
+        </div>
+      `;
+
+      document.body.appendChild(overlay);
+
+      const dots     = overlay.querySelectorAll(".pin-dot");
+      const enterBtn = overlay.querySelector("#pin-enter-btn");
+      const delBtn   = overlay.querySelector("#pin-del-btn");
+      const msgEl    = overlay.querySelector("#pin-msg");
+      const altBtn   = overlay.querySelector("#pin-alt-btn");
+
+      function updateDots() {
+        dots.forEach((d, i) => d.classList.toggle("filled", i < entered.length));
+        enterBtn.disabled = entered.length < pinLen;
+      }
+
+      function shake() {
+        const box = overlay.querySelector(".pin-box");
+        box.classList.remove("pin-shake");
+        void box.offsetWidth;
+        box.classList.add("pin-shake");
+      }
+
+      overlay.querySelectorAll(".pin-key[data-n]").forEach(btn => {
+        btn.addEventListener("click", () => {
+          if (entered.length >= pinLen) return;
+          entered += btn.dataset.n;
+          updateDots();
+          if (entered.length === pinLen) enterBtn.disabled = false;
+        });
+      });
+
+      delBtn.addEventListener("click", () => {
+        entered = entered.slice(0, -1);
+        msgEl.textContent = "";
+        updateDots();
+      });
+
+      altBtn.addEventListener("click", () => {
+        overlay.remove();
+        resolve({ ok: false, cancelled: true });
+      });
+
+      enterBtn.addEventListener("click", () => {
+        if (entered.length < pinLen) return;
+        overlay.remove();
+        resolve({ ok: true, pin: entered });
+      });
+
+      // إغلاق بالنقر خارج الصندوق
+      overlay.addEventListener("click", e => {
+        if (e.target === overlay) {
+          overlay.remove();
+          resolve({ ok: false, cancelled: true });
+        }
+      });
+    });
+  }
+
+  // ════════════════════════════════════════════
+  //  تسجيل PIN جديد (خطوتان للتأكيد)
+  // ════════════════════════════════════════════
+  async function registerPin(username) {
+    // الخطوة 1
+    const r1 = await showPinPad("register", "أدخل رمز الدخول السريع (6 أرقام)");
+    if (!r1.ok) return { ok: false };
+
+    // الخطوة 2: تأكيد
+    const r2 = await showPinPad("register", "أعد إدخال الرمز للتأكيد");
+    if (!r2.ok) return { ok: false };
+
+    if (r1.pin !== r2.pin) {
+      // عرض خطأ
+      await showErrorDialog("الرمزان غير متطابقين. حاول مجدداً.");
+      return { ok: false, mismatch: true };
+    }
+
+    // تخزين مشفّر
+    const salt = randomSalt();
+    const hash = await hashPin(r1.pin, salt);
+    localStorage.setItem(PIN_USER_KEY, username);
+    localStorage.setItem(PIN_SALT_KEY, salt);
+    localStorage.setItem(PIN_HASH_KEY, hash);
+    localStorage.setItem(PIN_ON_KEY,   "1");
+    return { ok: true };
+  }
+
+  // ════════════════════════════════════════════
+  //  التحقق من PIN
+  // ════════════════════════════════════════════
+  async function verifyPin() {
+    const user = localStorage.getItem(PIN_USER_KEY);
+    const salt = localStorage.getItem(PIN_SALT_KEY);
+    const stored = localStorage.getItem(PIN_HASH_KEY);
+    if (!user || !salt || !stored) return { ok: false, error: "no_pin" };
+
+    let attempts = 0;
+    const maxAttempts = 5;
+
+    while (attempts < maxAttempts) {
+      const r = await showPinPad("verify",
+        attempts === 0
+          ? `مرحباً ${user} 👋`
+          : `رمز خاطئ — تبقّى ${maxAttempts - attempts} محاولة`
+      );
+      if (!r.ok) return { ok: false, error: "cancelled" };
+
+      const hash = await hashPin(r.pin, salt);
+      if (hash === stored) return { ok: true, username: user };
+
+      attempts++;
+      if (attempts >= maxAttempts) {
+        removePin();
+        return { ok: false, error: "locked" };
+      }
+    }
+    return { ok: false, error: "locked" };
+  }
+
+  // رسالة خطأ بسيطة
+  function showErrorDialog(msg) {
+    return new Promise(resolve => {
+      alert(msg);
+      resolve();
+    });
+  }
+
+  // ════════════════════════════════════════════
+  //  بناء زر الدخول السريع في شاشة المصادقة
+  // ════════════════════════════════════════════
   function buildAuthBioElements() {
     if (document.getElementById("bio-login-section")) return;
 
     const section = document.createElement("div");
     section.id = "bio-login-section";
-    section.style.display = "none"; // يظهر فقط بعد التسجيل
+    section.style.display = "none";
 
     const divider = document.createElement("div");
     divider.className = "bio-divider";
@@ -197,53 +355,32 @@
     btn.type = "button";
     btn.id = "bio-login-btn";
     btn.className = "bio-login-btn";
-    btn.innerHTML = `<span class="bio-icon">👆</span><span>دخول بالبصمة / Face ID</span>`;
-
-    const msg = document.createElement("p");
-    msg.className = "bio-msg";
-    msg.id = "bio-login-msg";
+    btn.innerHTML = `<span class="bio-icon">🔐</span><span>الدخول السريع (رمز الـ 6 أرقام)</span>`;
 
     section.appendChild(divider);
     section.appendChild(btn);
-    section.appendChild(msg);
 
     const loginFields = document.getElementById("auth-login-fields");
     if (loginFields) loginFields.appendChild(section);
-    else {
-      const form = document.getElementById("auth-form");
-      if (form) form.appendChild(section);
-    }
 
     btn.addEventListener("click", async () => {
-      const bioUser = localStorage.getItem(BIO_USER_KEY);
-      if (!bioUser) return;
       btn.disabled = true;
-      msg.textContent = "جارٍ التحقق...";
-      msg.className = "bio-msg";
-
-      const res = await verifyBiometric();
+      const res = await verifyPin();
       btn.disabled = false;
 
       if (res.ok) {
-        msg.textContent = "✅ تم التحقق!";
-        msg.className = "bio-msg bio-success";
-        if (typeof startAppForUser === "function") await startAppForUser(bioUser);
-      } else if (res.error === "denied") {
-        msg.textContent = "❌ تم رفض التحقق أو إلغاؤه.";
-        msg.className = "bio-msg bio-error";
-      } else if (res.error === "no_credential") {
-        msg.textContent = "⚠ انتهت صلاحية البصمة. أعد التفعيل بعد الدخول.";
-        msg.className = "bio-msg bio-error";
-        removeBioRegistration();
+        if (typeof startAppForUser === "function") await startAppForUser(res.username);
+      } else if (res.error === "locked") {
+        alert("تم تجاوز عدد المحاولات. أعد التفعيل بعد تسجيل الدخول بكلمة المرور.");
         refreshBioUI();
-      } else {
-        msg.textContent = "⚠ تعذّر التحقق: " + res.error;
-        msg.className = "bio-msg bio-error";
       }
+      // cancelled → لا شيء
     });
   }
 
-  // ── زر التفعيل/الإلغاء في شريط المستخدم ──
+  // ════════════════════════════════════════════
+  //  زر التفعيل/الإلغاء في شريط المستخدم
+  // ════════════════════════════════════════════
   function buildUserBarBioBtn() {
     const userBar = document.getElementById("user-bar");
     if (!userBar || document.getElementById("bio-enroll-btn")) return;
@@ -258,10 +395,10 @@
     else userBar.appendChild(btn);
 
     btn.addEventListener("click", async () => {
-      if (isBioRegistered()) {
-        const ok = confirm("هل تريد إلغاء تسجيل البصمة من هذا الجهاز؟");
+      if (isPinEnabled()) {
+        const ok = confirm("هل تريد إلغاء الدخول السريع؟");
         if (!ok) return;
-        removeBioRegistration();
+        removePin();
         refreshBioUI();
         return;
       }
@@ -273,71 +410,53 @@
       if (!username) { alert("يجب تسجيل الدخول أولاً."); return; }
 
       btn.disabled = true;
-      btn.textContent = "⏳ جارٍ التسجيل...";
+      btn.textContent = "⏳ جارٍ التفعيل...";
 
-      const res = await enrollBiometric(username);
+      const res = await registerPin(username);
       btn.disabled = false;
 
       if (res.ok) {
         refreshBioUI();
         btn.textContent = "✅ تم التفعيل!";
         setTimeout(refreshBioUI, 1500);
-      } else if (res.error === "denied") {
-        alert("تم رفض إذن البصمة.\nتأكد من السماح بالوصول في إعدادات المتصفح أو الجهاز.");
-        refreshBioUI();
-      } else if (res.error === "unsupported") {
-        alert("جهازك لا يدعم المصادقة البيومترية.\nتأكد من تفعيل بصمة الإصبع أو Face ID في إعدادات الجهاز.");
-        refreshBioUI();
-      } else if (res.error === "already_registered") {
-        localStorage.setItem(BIO_REGISTERED_KEY, "1");
-        localStorage.setItem(BIO_USER_KEY, username);
-        refreshBioUI();
-      } else if (res.error === "cancelled") {
+      } else if (res.mismatch) {
         refreshBioUI();
       } else {
-        alert("حدث خطأ أثناء تسجيل البصمة:\n" + res.error);
-        refreshBioUI();
+        refreshBioUI(); // ألغى
       }
     });
   }
 
-  // ── تحديث الواجهة ──
+  // ════════════════════════════════════════════
+  //  تحديث الواجهة
+  // ════════════════════════════════════════════
   function refreshBioUI() {
-    const registered = isBioRegistered();
+    const enabled = isPinEnabled();
 
     const loginSection = document.getElementById("bio-login-section");
-    if (loginSection) {
-      loginSection.style.display = registered ? "block" : "none";
-      const msg = document.getElementById("bio-login-msg");
-      if (msg) { msg.textContent = ""; msg.className = "bio-msg"; }
-    }
+    if (loginSection) loginSection.style.display = enabled ? "block" : "none";
 
     const enrollBtn = document.getElementById("bio-enroll-btn");
     if (enrollBtn) {
-      if (registered) {
-        enrollBtn.textContent = "🗑 إلغاء البصمة";
+      if (enabled) {
+        enrollBtn.textContent = "🗑 إلغاء الدخول السريع";
         enrollBtn.className = "bio-enroll-btn bio-remove-btn";
       } else {
-        enrollBtn.textContent = "👆 تفعيل البصمة";
+        enrollBtn.textContent = "🔐 تفعيل الدخول السريع";
         enrollBtn.className = "bio-enroll-btn";
       }
     }
   }
 
-  // ── التهيئة ──
+  // ════════════════════════════════════════════
+  //  التهيئة
+  // ════════════════════════════════════════════
   function init() {
-    // ★ الشرط الوحيد: وجود WebAuthn API — بدون أي فحص إضافي
-    if (!isBioSupported()) {
-      console.info("[Biometric] WebAuthn غير مدعوم.");
-      return;
-    }
-
     injectStyles();
     buildAuthBioElements();
     buildUserBarBioBtn();
     refreshBioUI();
 
-    // مراقبة تغيّر حالة الدخول
     new MutationObserver(() => {
       const mainApp = document.getElementById("main-app");
       const authScr = document.getElementById("auth-screen");

@@ -831,8 +831,15 @@ function renderSavedEntries() {
     const deleteBtn = document.createElement("button");
     deleteBtn.className = "toggle-btn";
     deleteBtn.textContent = t("deleteBtn");
-    deleteBtn.addEventListener("click", () => {
-      const ok = confirm(t("deleteConfirm"));
+    deleteBtn.addEventListener("click", async () => {
+      const ok = window.showConfirmDialog
+        ? await window.showConfirmDialog({
+            title: t("deleteCardTitle"),
+            message: t("deleteConfirm"),
+            confirmText: t("deleteBtn"),
+            cancelText: t("cancelBtn"),
+          })
+        : confirm(t("deleteConfirm"));
       if (!ok) return;
 
       savedEntries = savedEntries.filter((e) => e.id !== entry.id);
@@ -1436,8 +1443,18 @@ function handleRemindClick() {
   authHintDisplay.hidden = false;
 }
 
-function handleLogout() {
-  const ok = confirm(t("logoutConfirm"));
+async function handleLogout() {
+  const ok = window.showConfirmDialog
+    ? await window.showConfirmDialog({
+        title: t("logoutTitle"),
+        subtitle: t("logoutSubtitle"),
+        message: t("logoutConfirm"),
+        confirmText: t("logoutBtn"),
+        cancelText: t("cancelBtn"),
+        icon: "logout",
+        compact: true,
+      })
+    : confirm(t("logoutConfirm"));
   if (!ok) return;
 
   setCurrentUsername(null);
@@ -1850,7 +1867,15 @@ if (trashDeleteAllBtn) {
     const msg = ids.length === allCount
       ? t("trashDeleteAllConfirm")
       : t("trashDeleteSelectedConfirm", ids.length);
-    if (!confirm(msg)) return;
+    const okDel = window.showConfirmDialog
+      ? await window.showConfirmDialog({
+          title: t("deleteCardTitle"),
+          message: msg,
+          confirmText: t("deleteBtn"),
+          cancelText: t("cancelBtn"),
+        })
+      : confirm(msg);
+    if (!okDel) return;
     trashDeleteAllBtn.disabled = true;
     trashDeleteAllBtn.textContent = t("trashDeleting");
     await dbPermanentDeleteSelected(ids);
@@ -1864,7 +1889,7 @@ if (trashModal) {
   });
 }
 
-saveEntryBtn.addEventListener("click", () => {
+saveEntryBtn.addEventListener("click", async () => {
   // وضع الزائر: اطلب تسجيل الدخول قبل الحفظ
   if (!currentUsername) {
     setAuthMode("login");
@@ -1880,7 +1905,16 @@ saveEntryBtn.addEventListener("click", () => {
   const daysHtml = resultText.innerHTML || "";
   const importance = importanceSelect.value;
 
-  const noteRaw = prompt(t("notePrompt"), "");
+  const noteRaw = window.showPromptDialog
+    ? await window.showPromptDialog({
+        title: t("noteTitle"),
+        message: t("notePrompt"),
+        placeholder: t("notePlaceholder"),
+        confirmText: t("noteSaveBtn"),
+        cancelText: t("cancelBtn"),
+        icon: "note",
+      })
+    : prompt(t("notePrompt"), "");
   if (noteRaw === null) {
     return;
   }

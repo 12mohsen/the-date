@@ -302,6 +302,35 @@ function formatEquivDynamic(remainDays, totalDays, hideTotalIfEqual) {
   return `<span class="details-equivalent">${equivWord} ${toTotalLabel(rem)}</span> <span class="details-gold">${ofWord} ${toTotalLabel(tot)}</span>`;
 }
 
+// ─────────────────────────────────────────────────────
+//  تسمية مدة بالأيام: "9 شهر و 1 يوم" أو "سنة و 2 شهر"
+//  (سنة = 365 يوم، شهر = 30 يوم — متوافق مع formatEquivDynamic)
+// ─────────────────────────────────────────────────────
+function formatDurationLabelDays(d) {
+  const n = Math.abs(Math.round(d || 0));
+  const isEn = (typeof getLanguage === "function" && getLanguage() === "en");
+  if (n === 0) return `0 ${t("dayUnit")}`;
+  const parts = [];
+  let rest = n;
+  if (n >= 365) {
+    const years = Math.floor(n / 365);
+    rest = n % 365;
+    let yearLabel;
+    if (isEn) yearLabel = years === 1 ? "1 year" : `${years} years`;
+    else if (years === 1) yearLabel = "سنة";
+    else if (years === 2) yearLabel = "سنتين";
+    else if (years <= 10) yearLabel = `${years} سنوات`;
+    else yearLabel = `${years} سنة`;
+    parts.push(yearLabel);
+  }
+  const months = Math.floor(rest / 30);
+  const days = rest % 30;
+  if (months > 0) parts.push(`${months} ${t("monthUnit")}`);
+  if (days > 0) parts.push(`${days} ${t("dayUnit")}`);
+  if (!parts.length) parts.push(`0 ${t("dayUnit")}`);
+  return parts.join(` ${t("and")} `);
+}
+
 function saveState(extra = {}) {
   const state = {
     mode,
@@ -564,6 +593,32 @@ function renderSavedEntries() {
 
       const abs = Math.abs(days);
 
+      // ─── الأصل: إجمالي المدة الأصلية (من نقطة البداية حتى الهدف) ───
+      // يُحسب دائمًا لوضع "حتى" (قبل وبعد الانتهاء) حتى يبقى "من أصل" ثابتًا
+      let _origTotalDays = null;
+      if (entry.modeAtSave === "until") {
+        if (entry.sinceBaseRaw) {
+          const _sb0 = new Date(entry.sinceBaseRaw + "T00:00:00");
+          if (!isNaN(_sb0.getTime())) {
+            const _tot0 = Math.abs(diffInDays(_sb0, targetForCalc));
+            if (_tot0 > 0) _origTotalDays = _tot0;
+          }
+        }
+        if (_origTotalDays == null) {
+          const _entryTs0 = typeof entry.id === "number" ? entry.id : Number(entry.id);
+          if (!isNaN(_entryTs0) && _entryTs0 > 1577836800000 && _entryTs0 < 2524608000000) {
+            const _saveDay0 = new Date(_entryTs0);
+            _saveDay0.setHours(0, 0, 0, 0);
+            const _tot0 = Math.abs(diffInDays(_saveDay0, targetForCalc));
+            if (_tot0 > 0) _origTotalDays = _tot0;
+          }
+        }
+      }
+      const _ofWord = (typeof getLanguage === "function" && getLanguage() === "en") ? "out of" : "من أصل";
+      const _origSuffix = _origTotalDays != null
+        ? ` <span class="details-gold">${_ofWord} ${formatDurationLabelDays(_origTotalDays)}</span>`
+        : "";
+
       // اختيار الكلمة حسب الوضع الذي حُفظت به المدة، وليس حسب إشارة days
       let verb = "";
       if (entry.modeAtSave === "since") {
@@ -573,10 +628,11 @@ function renderSavedEntries() {
         if (targetForCalc < today) {
           dynamicMainLine = `<span class="result-verb-red" style="color: #22c55e;">${t("verbEnded")}</span>`;
           item.classList.add("ended-border");
-          dynamicEquivLine = t("daysPassedSinceEnd", abs);
-        } else if (targetForCalc === today) {
+          // يستمر عدّ المدة بعد الانتهاء + يبقى الأصل ظاهرًا للمراجعة
+          dynamicEquivLine = t("daysPassedSinceEnd", abs) + _origSuffix;
+        } else if (targetForCalc.getTime() === today.getTime()) {
           dynamicMainLine = `<span class="result-verb-red" style="color: #f59e0b;">${t("verbToday")}</span>`;
-          dynamicEquivLine = t("endsToday");
+          dynamicEquivLine = t("endsToday") + _origSuffix;
         } else {
           verb = t("verbUntil");
           blinkIsFuture = targetForCalc > today;
@@ -595,28 +651,10 @@ function renderSavedEntries() {
 
       // ─── إجمالي المدة الديناميكية ───
       // منذ → إجمالي = مدة منقضية = abs (دائماً تساوي المتبقية)
-      // حتى (مستقبل) → إجمالي = من تاريخ الحفظ حتى الهدف
+      // حتى (مستقبل) → إجمالي = الأصل الثابت المحسوب أعلاه
       let _totalForEquiv = abs;
-      if (entry.modeAtSave === "until" && targetForCalc > today) {
-        let _gotTotal = false;
-        // أولاً: sinceBaseRaw (تاريخ الأساس الأصلي "منذ")
-        if (entry.sinceBaseRaw) {
-          const _sb = new Date(entry.sinceBaseRaw + "T00:00:00");
-          if (!isNaN(_sb.getTime())) {
-            const _tot = Math.abs(diffInDays(_sb, targetForCalc));
-            if (_tot > 0) { _totalForEquiv = _tot; _gotTotal = true; }
-          }
-        }
-        // ثانياً: fallback إلى تاريخ الحفظ من entry.id
-        if (!_gotTotal) {
-          const _entryTs = typeof entry.id === "number" ? entry.id : NaN;
-          if (!isNaN(_entryTs) && _entryTs > 1577836800000 && _entryTs < 2524608000000) {
-            const _saveDay = new Date(_entryTs);
-            _saveDay.setHours(0, 0, 0, 0);
-            const _tot = diffInDays(_saveDay, targetForCalc);
-            if (_tot > 0) _totalForEquiv = _tot;
-          }
-        }
+      if (entry.modeAtSave === "until" && targetForCalc > today && _origTotalDays != null) {
+        _totalForEquiv = _origTotalDays;
       }
 
       if (!dynamicEquivLine) {
@@ -640,47 +678,39 @@ function renderSavedEntries() {
       }
 
       // ── سطر التعادل الزمني "منذ [من] حتى [إلى] تعادل [قيمة]" ──
-      // since → منذ targetDate حتى اليوم
-      // until (مستقبل) → منذ اليوم حتى targetDate
-      // until (منتهي أو اليوم) → لا يُعرض لأن المعنى غير ملائم
+      // since → لا يُعرض (كان مكررًا مع سطر "تعادل" الرئيسي وسطر التفاصيل)
+      // until → يُعرض دائمًا (قبل وبعد الانتهاء) لمراجعة تاريخ البداية والأصل
       const _isFutureTarget = targetForCalc > today;
-      if (entry.modeAtSave === "since" || (entry.modeAtSave === "until" && _isFutureTarget)) {
-        let _fromDate, _equivRemain, _equivTotal;
-        if (entry.modeAtSave === "since") {
-          // منذ: من targetDate حتى اليوم — المتبقي = الإجمالي = abs
-          _fromDate    = targetForCalc;
-          _equivRemain = abs;
-          _equivTotal  = abs;
-        } else {
-          // حتى (مستقبل): نفضّل sinceBaseRaw كنقطة البداية الأصلية
-          _equivRemain = abs;  // المتبقي = اليوم → الهدف
-          if (entry.sinceBaseRaw) {
-            const _sb = new Date(entry.sinceBaseRaw + "T00:00:00");
-            if (!isNaN(_sb.getTime())) {
-              _fromDate   = _sb;
-              _equivTotal = Math.abs(diffInDays(_sb, targetForCalc));
-            }
-          }
-          if (!_fromDate) {
-            // fallback: تاريخ الحفظ من entry.id كنقطة بداية
-            const _entryTs2 = typeof entry.id === "number" ? entry.id : Number(entry.id);
-            if (!isNaN(_entryTs2) && _entryTs2 > 1577836800000 && _entryTs2 < 2524608000000) {
-              const _saveDay2 = new Date(_entryTs2);
-              _saveDay2.setHours(0, 0, 0, 0);
-              _fromDate   = _saveDay2;
-              _equivTotal = Math.abs(diffInDays(_saveDay2, targetForCalc));
-            } else {
-              _fromDate   = today;
-              _equivTotal = _totalForEquiv;
-            }
+      if (entry.modeAtSave === "until") {
+        // نقطة البداية الأصلية: sinceBaseRaw ثم تاريخ الحفظ من entry.id
+        let _fromDate = null;
+        if (entry.sinceBaseRaw) {
+          const _sb = new Date(entry.sinceBaseRaw + "T00:00:00");
+          if (!isNaN(_sb.getTime())) _fromDate = _sb;
+        }
+        if (!_fromDate) {
+          const _entryTs2 = typeof entry.id === "number" ? entry.id : Number(entry.id);
+          if (!isNaN(_entryTs2) && _entryTs2 > 1577836800000 && _entryTs2 < 2524608000000) {
+            const _saveDay2 = new Date(_entryTs2);
+            _saveDay2.setHours(0, 0, 0, 0);
+            _fromDate = _saveDay2;
+          } else if (_isFutureTarget) {
+            _fromDate = today;
           }
         }
-        const _toDate    = entry.modeAtSave === "since" ? today : targetForCalc;
-        const _equivFull = formatEquivDynamic(_equivRemain, _equivTotal, entry.modeAtSave === 'since');
-        if (_equivFull) {
-          const _fromFmt = formatBothCalendars(_fromDate);
-          const _toFmt   = formatBothCalendars(_toDate);
-          dynamicSummaryLine = `<span class="details-gold">منذ ${_fromFmt} حتى ${_toFmt}</span> ${_equivFull}`;
+        if (_fromDate) {
+          const _equivTotal = _origTotalDays != null
+            ? _origTotalDays
+            : Math.abs(diffInDays(_fromDate, targetForCalc));
+          // مستقبل: "تعادل [المتبقي] من أصل [الأصل]" — منتهي/اليوم: "تعادل [الأصل]" فقط
+          const _equivFull = _isFutureTarget
+            ? formatEquivDynamic(abs, _equivTotal, false)
+            : formatEquivDynamic(_equivTotal, _equivTotal, true);
+          if (_equivFull) {
+            const _fromFmt = formatBothCalendars(_fromDate);
+            const _toFmt   = formatBothCalendars(targetForCalc);
+            dynamicSummaryLine = `<span class="details-gold">منذ ${_fromFmt} حتى ${_toFmt}</span> ${_equivFull}`;
+          }
         }
       }
     }

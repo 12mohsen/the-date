@@ -209,7 +209,11 @@ async function dbFetchDeletedEntries() {
     const _rawDet   = row.details_text || "";
     const _sbMatch  = _rawDet.match(/<!--since_base:([0-9-]+)-->/);
     const _sinceBase = _sbMatch ? _sbMatch[1] : "";
-    const _cleanDet = _rawDet.replace(/<!--since_base:[0-9-]+-->/, "").trim();
+    const _yearly   = /<!--yearly:1-->/.test(_rawDet);
+    const _cleanDet = _rawDet
+      .replace(/<!--since_base:[0-9-]+-->/, "")
+      .replace(/<!--yearly:1-->/, "")
+      .trim();
     return {
       id:            Number(row.entry_id) || row.entry_id,
       note:          row.event_name || row.note || "",
@@ -221,6 +225,7 @@ async function dbFetchDeletedEntries() {
       equivalentText:row.equivalent_text || "",
       detailsText:   _cleanDet,
       sinceBaseRaw:  _sinceBase,
+      yearly:        _yearly,
       deletedAt:     row.deleted_at,
     };
   });
@@ -252,7 +257,11 @@ async function dbFetchEntries() {
     const _rawDet   = row.details_text || "";
     const _sbMatch  = _rawDet.match(/<!--since_base:([0-9-]+)-->/);
     const _sinceBase = _sbMatch ? _sbMatch[1] : "";
-    const _cleanDet = _rawDet.replace(/<!--since_base:[0-9-]+-->/, "").trim();
+    const _yearly   = /<!--yearly:1-->/.test(_rawDet);
+    const _cleanDet = _rawDet
+      .replace(/<!--since_base:[0-9-]+-->/, "")
+      .replace(/<!--yearly:1-->/, "")
+      .trim();
     return {
       id:              Number(row.entry_id) || row.entry_id,
       note:            row.event_name || row.note || "",
@@ -264,6 +273,7 @@ async function dbFetchEntries() {
       equivalentText:  row.equivalent_text || "",
       detailsText:     _cleanDet,
       sinceBaseRaw:    _sinceBase,
+      yearly:          _yearly,
       sortOrder:       (typeof row.sort_order === "number") ? row.sort_order : null,
       remainingDays:   null,
       remainingIsFuture: false,

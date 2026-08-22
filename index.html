@@ -177,6 +177,10 @@
               <option value="important" data-i18n="impImportant">مهم ⭐</option>
               <option value="very-important" data-i18n="impVeryImportant">مهم جدًا ⭐⭐</option>
             </select>
+            <label class="yearly-cb-label" data-i18n-title="yearlyLabel" title="يتكرر كل سنة (عيد ميلاد / ذكرى سنوية)">
+              <input type="checkbox" id="yearly-cb" />
+              <span data-i18n="yearlyShort">🎂 سنوي</span>
+            </label>
             <button id="save-entry-btn" class="secondary-btn" data-i18n="saveEntryBtn">حفظ المدة الحالية في الجدول</button>
             <button id="trash-btn" class="secondary-btn" type="button" data-i18n="trashBtn">🗑 سلة المحذوفات</button>
             <button id="notif-btn" class="secondary-btn notif-off-btn" type="button">🔕 التذكيرات</button>
@@ -225,6 +229,59 @@
         <div class="change-pw-actions">
           <button type="submit" id="change-pw-submit-btn" class="auth-submit-btn" data-i18n="changePwSubmitBtn">تغيير</button>
           <button type="button" id="change-pw-cancel-btn" class="auth-toggle-btn" data-i18n="changePwCancelBtn">إلغاء</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- مودال تعديل مدة محفوظة -->
+  <div id="edit-entry-modal" class="trash-modal" hidden>
+    <div class="trash-modal-content edit-entry-modal-content">
+      <div class="trash-modal-header">
+        <h2 data-i18n="editModalTitle">✏️ تعديل المدة</h2>
+        <button id="edit-entry-close-btn" class="trash-close-btn" data-i18n-aria="closeAria" aria-label="إغلاق">✕</button>
+      </div>
+
+      <form id="edit-entry-form" class="edit-entry-form" autocomplete="off">
+        <label for="edit-note" data-i18n="editNoteLabel">الاسم / الملاحظة</label>
+        <input type="text" id="edit-note" maxlength="120" />
+
+        <label for="edit-date" data-i18n="editDateLabel">التاريخ الهدف</label>
+        <input type="date" id="edit-date" dir="ltr" />
+
+        <label for="edit-importance" data-i18n="editImportanceLabel">الأهمية</label>
+        <select id="edit-importance">
+          <option value="normal" data-i18n="impNormal">عادي</option>
+          <option value="important" data-i18n="impImportant">مهم ⭐</option>
+          <option value="very-important" data-i18n="impVeryImportant">مهم جدًا ⭐⭐</option>
+        </select>
+
+        <label class="edit-yearly-label">
+          <input type="checkbox" id="edit-yearly-cb" />
+          <span data-i18n="yearlyLabel">🎂 يتكرر كل سنة (عيد ميلاد / ذكرى سنوية)</span>
+        </label>
+        <p id="edit-yearly-hint" class="edit-yearly-hint" data-i18n="yearlyHint" hidden>
+          يُحسب الموعد القادم تلقائياً كل سنة من التاريخ أعلاه، مع عرض العمر.
+        </p>
+
+        <div id="edit-mode-section">
+          <label data-i18n="editModeLabel">نوع الحساب</label>
+          <div class="edit-mode-toggle">
+            <button type="button" id="edit-mode-since" class="edit-mode-btn" data-mode="since" data-i18n="modeSince">منذ التاريخ</button>
+            <button type="button" id="edit-mode-until" class="edit-mode-btn" data-mode="until" data-i18n="modeUntil">حتى التاريخ</button>
+          </div>
+
+          <div id="edit-base-field" class="edit-base-field" hidden>
+            <label for="edit-base-date" data-i18n="editBaseDateLabel">تاريخ البداية (اختياري — يُستخدم في «من أصل»)</label>
+            <input type="date" id="edit-base-date" dir="ltr" />
+          </div>
+        </div>
+
+        <p id="edit-entry-error" class="auth-error" hidden></p>
+
+        <div class="change-pw-actions">
+          <button type="submit" id="edit-entry-save-btn" class="auth-submit-btn" data-i18n="editSaveBtn">حفظ التعديلات</button>
+          <button type="button" id="edit-entry-cancel-btn" class="auth-toggle-btn" data-i18n="cancelBtn">إلغاء</button>
         </div>
       </form>
     </div>

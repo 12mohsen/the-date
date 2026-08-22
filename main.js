@@ -74,6 +74,27 @@ const changePwError     = document.getElementById("change-pw-error");
 const changePwSubmitBtn = document.getElementById("change-pw-submit-btn");
 const changePwCancelBtn = document.getElementById("change-pw-cancel-btn");
 
+// عناصر مودال تعديل مدة محفوظة
+const editEntryModal    = document.getElementById("edit-entry-modal");
+const editEntryForm     = document.getElementById("edit-entry-form");
+const editEntryCloseBtn = document.getElementById("edit-entry-close-btn");
+const editEntryCancelBtn= document.getElementById("edit-entry-cancel-btn");
+const editEntryError    = document.getElementById("edit-entry-error");
+const editNoteInput     = document.getElementById("edit-note");
+const editDateInput     = document.getElementById("edit-date");
+const editImportanceSel = document.getElementById("edit-importance");
+const editModeSinceBtn  = document.getElementById("edit-mode-since");
+const editModeUntilBtn  = document.getElementById("edit-mode-until");
+const editBaseField     = document.getElementById("edit-base-field");
+const editBaseDateInput = document.getElementById("edit-base-date");
+const editYearlyCb      = document.getElementById("edit-yearly-cb");
+const editYearlyHint    = document.getElementById("edit-yearly-hint");
+const editModeSection   = document.getElementById("edit-mode-section");
+const yearlyCb          = document.getElementById("yearly-cb");
+
+let editingEntryId = null;   // معرّف المدة الجارِ تعديلها
+let editingMode    = "since"; // الوضع المختار داخل المودال
+
 // عناصر المشاركة
 const shareBtn       = document.getElementById("share-btn");
 const shareModal     = document.getElementById("share-modal");
@@ -154,6 +175,47 @@ function parseDate(input) {
   return isNaN(date.getTime()) ? null : date;
 }
 
+// ─────────────────────────────────────────────────────
+//  المدد المتكررة سنوياً (عيد ميلاد / ذكرى سنوية)
+// ─────────────────────────────────────────────────────
+
+// الموعد القادم لتاريخ يتكرر كل سنة: نفس اليوم/الشهر من هذه السنة،
+// فإن كان قد مضى ننتقل للسنة التالية.
+function nextYearlyOccurrence(rawDate, today) {
+  if (!rawDate) return null;
+  const orig = new Date(rawDate + "T00:00:00");
+  if (isNaN(orig.getTime())) return null;
+  let occ = new Date(today.getFullYear(), orig.getMonth(), orig.getDate());
+  occ.setHours(0, 0, 0, 0);
+  if (occ < today) {
+    occ = new Date(today.getFullYear() + 1, orig.getMonth(), orig.getDate());
+    occ.setHours(0, 0, 0, 0);
+  }
+  return occ;
+}
+
+// معلومات الموعد القادم لأي مدة تُعدّ تنازلياً:
+// المتكررة سنوياً → الموعد القادم — وضع "حتى التاريخ" → التاريخ الهدف
+// ترجع { date, days } أو null
+function getEntryDue(entry, today) {
+  if (!entry || !entry.targetDateRaw) return null;
+  if (entry.yearly) {
+    const occ = nextYearlyOccurrence(entry.targetDateRaw, today);
+    if (!occ) return null;
+    return { date: occ, days: diffInDays(today, occ) };
+  }
+  if (entry.modeAtSave !== "until") return null;
+  const tgt = new Date(entry.targetDateRaw + "T00:00:00");
+  if (isNaN(tgt.getTime())) return null;
+  return { date: tgt, days: diffInDays(today, tgt) };
+}
+
+// وسوم مخفية داخل details_text لحفظ خصائص لا يوجد لها عمود في القاعدة
+function buildEntryMarkers(entry) {
+  return (entry.sinceBaseRaw ? `<!--since_base:${entry.sinceBaseRaw}-->` : "")
+       + (entry.yearly ? "<!--yearly:1-->" : "");
+}
+
 function diffInDays(date1, date2) {
   const msPerDay = 24 * 60 * 60 * 1000;
   const diff = date2 - date1;
@@ -161,8 +223,7 @@ function diffInDays(date1, date2) {
 }
 
 function formatGregorian(date) {
-  const _lang = (typeof getLanguage === "function") ? getLanguage() : "ar";
-  const locale = _lang === "en" ? "en-GB" : _lang === "id" ? "id-ID" : "ar-EG";
+  const locale = (typeof getLanguage === "function" && getLanguage() === "en") ? "en-GB" : "ar-EG";
   const fmt = new Intl.DateTimeFormat(locale, {
     day: "numeric",
     month: "numeric",
@@ -196,7 +257,8 @@ function formatHijri(date) {
 function formatBothCalendars(date) {
   const g = formatGregorian(date);
   const h = formatHijri(date);
-  const gSuffix = t("gEraSuffix");
+  const isEn = (typeof getLanguage === "function" && getLanguage() === "en");
+  const gSuffix = isEn ? "" : " م";
   if (g === h) {
     return `<span class="date-greg">${g}</span>`;
   }
@@ -265,13 +327,22 @@ function formatEquivDynamic(remainDays, totalDays, hideTotalIfEqual) {
   function toTotalLabel(d) {
     const n = Math.abs(Math.round(d));
     if (n === 0) return `0 ${t("dayUnit")}`;
+    const isEn = (typeof getLanguage === "function" && getLanguage() === "en");
     if (n >= 365) {
       const years     = Math.floor(n / 365);
       let rest        = n % 365;
       const remMonths = Math.floor(rest / 30);
       const remDays   = rest % 30;
       // صياغة السنوات
-      const yearLabel = t("yearsLabel", years);
+      let yearLabel;
+      if (isEn) {
+        yearLabel = years === 1 ? "1 year" : `${years} years`;
+      } else {
+        if (years === 1)      yearLabel = "سنة";
+        else if (years === 2) yearLabel = "سنتين";
+        else if (years <= 10) yearLabel = `${years} سنوات`;
+        else                  yearLabel = `${years} سنة`;
+      }
       const parts = [yearLabel];
       if (remMonths > 0) parts.push(`${remMonths} ${t("monthUnit")}`);
       if (remDays   > 0) parts.push(`${remDays} ${t("dayUnit")}`);
@@ -283,8 +354,9 @@ function formatEquivDynamic(remainDays, totalDays, hideTotalIfEqual) {
   const rem = Math.abs(Math.round(remainDays || 0));
   const tot = Math.abs(Math.round(totalDays  || 0));
   if (rem === 0 && tot === 0) return "";
-  const equivWord = t("equivWord");
-  const ofWord    = t("ofWord");
+  const isEn = (typeof getLanguage === "function" && getLanguage() === "en");
+  const equivWord = isEn ? "Equivalent to" : "تعادل";
+  const ofWord    = isEn ? "out of"        : "من أصل";
   // إذا تساوى المتبقي والإجمالي ووضع "مضى" لا نعرض "من أصل"
   if (hideTotalIfEqual && rem === tot) {
     return `<span class="details-equivalent">${equivWord} ${toTotalLabel(rem)}</span>`;
@@ -298,13 +370,20 @@ function formatEquivDynamic(remainDays, totalDays, hideTotalIfEqual) {
 // ─────────────────────────────────────────────────────
 function formatDurationLabelDays(d) {
   const n = Math.abs(Math.round(d || 0));
+  const isEn = (typeof getLanguage === "function" && getLanguage() === "en");
   if (n === 0) return `0 ${t("dayUnit")}`;
   const parts = [];
   let rest = n;
   if (n >= 365) {
     const years = Math.floor(n / 365);
     rest = n % 365;
-    parts.push(t("yearsLabel", years));
+    let yearLabel;
+    if (isEn) yearLabel = years === 1 ? "1 year" : `${years} years`;
+    else if (years === 1) yearLabel = "سنة";
+    else if (years === 2) yearLabel = "سنتين";
+    else if (years <= 10) yearLabel = `${years} سنوات`;
+    else yearLabel = `${years} سنة`;
+    parts.push(yearLabel);
   }
   const months = Math.floor(rest / 30);
   const days = rest % 30;
@@ -566,7 +645,56 @@ function renderSavedEntries() {
       }
     }
 
-    if (targetForCalc) {
+    // ── المدد المتكررة سنوياً: عدّ تنازلي للموعد القادم + عرض العمر ──
+    if (entry.yearly && targetForCalc) {
+      const occ = nextYearlyOccurrence(entry.targetDateRaw, today);
+      if (occ) {
+        const daysLeft   = diffInDays(today, occ);
+        const turningAge = occ.getFullYear() - targetForCalc.getFullYear();
+        const hasAge     = turningAge > 0;
+
+        item.classList.add("yearly-border");
+
+        if (daysLeft === 0) {
+          item.classList.add("yearly-today");
+          dynamicMainLine = `<span class="yearly-badge">${t("birthdayToday")}</span>`;
+          dynamicEquivLine = hasAge
+            ? `<span class="details-equivalent">${t("turnsAgeToday", turningAge)}</span>`
+            : "";
+        } else {
+          dynamicMainLine = `<span class="result-verb-red">${t("verbUntil")}</span> ${daysLeft} ${t("dayUnit")}`;
+          const bits = [];
+          if (hasAge) {
+            bits.push(`<span class="details-equivalent">${t("turnsAgeSoon", turningAge)}</span>`);
+            if (turningAge - 1 > 0) {
+              bits.push(`<span class="details-gold">${t("currentAge", turningAge - 1)}</span>`);
+            }
+          }
+          dynamicEquivLine = bits.join(" — ");
+        }
+
+        // في يوم الموعد نفسه لا داعي لسطر "الموعد القادم" (هو اليوم)
+        dynamicDetailsLine = daysLeft === 0
+          ? ""
+          : `<span class="details-gold">${t("joinNextOccurrence", formatBothCalendars(occ), formatBothCalendars(today))}</span>`;
+        dynamicSummaryLine =
+          `<span class="yearly-orig">${t("originalDateLabel")} ${formatBothCalendars(targetForCalc)}</span>`;
+
+        // ── المدة المنقضية منذ التاريخ الأصلي: "مضى 46 يوم — تعادل 1 شهر و 16 يوم" ──
+        const elapsedDays = diffInDays(targetForCalc, today);
+        if (elapsedDays > 0) {
+          const elapsedEquiv = formatEquivDynamic(elapsedDays, elapsedDays, true);
+          dynamicSummaryLine +=
+            `<br><span class="yearly-elapsed">` +
+            `<span class="result-verb-red">${t("verbSince")}</span> ${elapsedDays} ${t("dayUnit")}` +
+            (elapsedEquiv ? ` — ${elapsedEquiv}` : "") +
+            `</span>`;
+        }
+
+        blinkDays = daysLeft;
+        blinkIsFuture = daysLeft > 0;
+      }
+    } else if (targetForCalc) {
       let days;
       if (entry.modeAtSave === "since") {
         days = diffInDays(targetForCalc, today);
@@ -597,7 +725,7 @@ function renderSavedEntries() {
           }
         }
       }
-      const _ofWord = t("ofWord");
+      const _ofWord = (typeof getLanguage === "function" && getLanguage() === "en") ? "out of" : "من أصل";
       const _origSuffix = _origTotalDays != null
         ? ` <span class="details-gold">${_ofWord} ${formatDurationLabelDays(_origTotalDays)}</span>`
         : "";
@@ -743,23 +871,29 @@ function renderSavedEntries() {
     if (stars.innerHTML) {
       titleRow.appendChild(stars);
     }
-    // ── أيقونة التحذير للمواعيد ≤ 3 أيام ──
-    if (entry.modeAtSave === "until" && !entry.hidden) {
-      const _t = entry.targetDateRaw ? new Date(entry.targetDateRaw + "T00:00:00") : null;
-      if (_t && !isNaN(_t)) {
-        const _d = diffInDays(today, _t);
-        if (_d >= 0 && _d <= 3) {
-          const warnIcon = document.createElement("button");
-          warnIcon.className = "entry-warn-icon";
-          warnIcon.type = "button";
-          warnIcon.title = _d === 0 ? t("notifBodyToday").replace("{name}","") : `${_d} ${t("dayUnit")}`;
-          warnIcon.textContent = _d === 0 ? "⚡" : "⚠";
-          warnIcon.addEventListener("click", (ev) => {
-            ev.stopPropagation();
-            scrollToEntry(entry.id);
-          });
-          titleRow.appendChild(warnIcon);
-        }
+    // ── شارة التكرار السنوي ──
+    if (entry.yearly) {
+      const yearlyTag = document.createElement("span");
+      yearlyTag.className = "yearly-tag";
+      yearlyTag.textContent = t("yearlyBadge");
+      titleRow.appendChild(yearlyTag);
+    }
+
+    // ── أيقونة التحذير للمواعيد ≤ 3 أيام (تشمل المتكررة سنوياً) ──
+    if (!entry.hidden) {
+      const _due = getEntryDue(entry, today);
+      if (_due && _due.days >= 0 && _due.days <= 3) {
+        const _d = _due.days;
+        const warnIcon = document.createElement("button");
+        warnIcon.className = "entry-warn-icon";
+        warnIcon.type = "button";
+        warnIcon.title = _d === 0 ? t("verbToday") : `${_d} ${t("dayUnit")}`;
+        warnIcon.textContent = entry.yearly && _d === 0 ? "🎂" : (_d === 0 ? "⚡" : "⚠");
+        warnIcon.addEventListener("click", (ev) => {
+          ev.stopPropagation();
+          scrollToEntry(entry.id);
+        });
+        titleRow.appendChild(warnIcon);
       }
     }
 
@@ -811,6 +945,17 @@ function renderSavedEntries() {
 
     right.appendChild(toggleBtn);
 
+    // ── زر التعديل ──
+    const editBtn = document.createElement("button");
+    editBtn.className = "toggle-btn edit-btn";
+    editBtn.type = "button";
+    editBtn.textContent = t("editBtn");
+    editBtn.addEventListener("click", () => {
+      openEditEntryModal(entry.id);
+    });
+
+    right.appendChild(editBtn);
+
     const deleteBtn = document.createElement("button");
     deleteBtn.className = "toggle-btn";
     deleteBtn.textContent = t("deleteBtn");
@@ -841,7 +986,8 @@ function renderSavedEntries() {
       // بناء نص النسخ من أجزاء المدة (بدون وسوم HTML)
       function stripHtml(html) {
         const tmp = document.createElement("div");
-        tmp.innerHTML = html || "";
+        // نحوّل <br> إلى سطر جديد حتى لا تلتصق الأسطر عند النسخ
+        tmp.innerHTML = (html || "").replace(/<br\s*\/?>/gi, "\n");
         return tmp.textContent.trim();
       }
       const lines = [];
@@ -921,22 +1067,20 @@ function renderSavedEntries() {
   if (ndBar) {
     const todayForBar = new Date(); todayForBar.setHours(0,0,0,0);
     const nearItems = savedEntries.filter(e => {
-      if (e.modeAtSave !== "until" || e.hidden || !e.targetDateRaw) return false;
-      const tgt = new Date(e.targetDateRaw + "T00:00:00");
-      if (isNaN(tgt)) return false;
-      const d = diffInDays(todayForBar, tgt);
-      return d >= 0 && d <= 3;
+      if (e.hidden) return false;
+      const due = getEntryDue(e, todayForBar);
+      return !!due && due.days >= 0 && due.days <= 3;
     });
     if (nearItems.length > 0) {
       ndBar.hidden = false;
       ndBar.innerHTML = `<span class="nd-label">${t("ndBarLabel")}</span>` +
         nearItems.map(e => {
-          const tgt = new Date(e.targetDateRaw + "T00:00:00");
-          const d   = diffInDays(todayForBar, tgt);
+          const d = getEntryDue(e, todayForBar).days;
           const daysTxt = d === 0
-            ? `<span class="nd-days">${t("notifBodyToday").replace("{name}","")}</span>`
+            ? `<span class="nd-days">${t("verbToday")}</span>`
             : `<span class="nd-days">${d} ${t("dayUnit")}</span>`;
-          return `<button class="nd-chip" onclick="scrollToEntry(${e.id})">${e.note} ${daysTxt}</button>`;
+          const icon = e.yearly ? "🎂 " : "";
+          return `<button class="nd-chip" onclick="scrollToEntry(${e.id})">${icon}${e.note} ${daysTxt}</button>`;
         }).join("");
     } else {
       ndBar.hidden = true;
@@ -1872,6 +2016,178 @@ if (trashModal) {
   });
 }
 
+// ═══════════════════════════════════════════════════════
+//  تعديل مدة محفوظة
+// ═══════════════════════════════════════════════════════
+
+// تحويل كائن Date إلى صيغة حقل input[type=date] (yyyy-mm-dd)
+function toRawDate(date) {
+  if (!date || isNaN(date.getTime())) return "";
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+// تحديث مظهر زرّي (منذ / حتى) داخل المودال
+function setEditMode(newMode) {
+  editingMode = newMode === "until" ? "until" : "since";
+  if (editModeSinceBtn) editModeSinceBtn.classList.toggle("active", editingMode === "since");
+  if (editModeUntilBtn) editModeUntilBtn.classList.toggle("active", editingMode === "until");
+  // تاريخ البداية يخصّ وضع "حتى التاريخ" فقط
+  if (editBaseField) editBaseField.hidden = editingMode !== "until";
+}
+
+// عند تفعيل التكرار السنوي لا معنى لـ (منذ/حتى) ولا لتاريخ البداية
+function refreshEditYearlyUI() {
+  const on = !!(editYearlyCb && editYearlyCb.checked);
+  if (editYearlyHint)  editYearlyHint.hidden  = !on;
+  if (editModeSection) editModeSection.hidden = on;
+}
+
+function showEditError(msg) {
+  if (!editEntryError) return;
+  editEntryError.style.color = "";
+  editEntryError.textContent = msg;
+  editEntryError.hidden = false;
+}
+
+function openEditEntryModal(entryId) {
+  const entry = savedEntries.find((e) => String(e.id) === String(entryId));
+  if (!entry || !editEntryModal) return;
+
+  editingEntryId = entry.id;
+
+  if (editEntryError) { editEntryError.hidden = true; editEntryError.textContent = ""; }
+  if (editNoteInput)      editNoteInput.value = entry.note || "";
+  if (editImportanceSel)  editImportanceSel.value = entry.importance || "normal";
+
+  // التاريخ الهدف: نستخدم الخام إن وُجد، وإلا نستنتجه من النص المخزن
+  let rawTarget = entry.targetDateRaw || "";
+  if (!rawTarget && entry.targetDate) {
+    const guess = new Date(entry.targetDate);
+    rawTarget = toRawDate(guess);
+  }
+  if (editDateInput) editDateInput.value = rawTarget;
+
+  if (editBaseDateInput) editBaseDateInput.value = entry.sinceBaseRaw || "";
+
+  setEditMode(entry.modeAtSave || "since");
+
+  if (editYearlyCb) editYearlyCb.checked = !!entry.yearly;
+  refreshEditYearlyUI();
+
+  editEntryModal.hidden = false;
+  if (editNoteInput) editNoteInput.focus();
+}
+
+function closeEditEntryModal() {
+  if (editEntryModal) editEntryModal.hidden = true;
+  editingEntryId = null;
+}
+
+function handleEditEntrySubmit(e) {
+  e.preventDefault();
+  if (editingEntryId === null) return;
+
+  const entry = savedEntries.find((x) => String(x.id) === String(editingEntryId));
+  if (!entry) { closeEditEntryModal(); return; }
+
+  const note = (editNoteInput ? editNoteInput.value : "").trim();
+  if (!note) {
+    showEditError(t("editNeedNote"));
+    return;
+  }
+
+  const rawDate = (editDateInput ? editDateInput.value : "").trim();
+  const targetDate = rawDate ? new Date(rawDate + "T00:00:00") : null;
+  if (!targetDate || isNaN(targetDate.getTime())) {
+    showEditError(t("editNeedDate"));
+    return;
+  }
+
+  const importance = editImportanceSel ? editImportanceSel.value : "normal";
+  const isYearly   = !!(editYearlyCb && editYearlyCb.checked);
+
+  // تاريخ البداية (لوضع "حتى" فقط) — يُستخدم في حساب "من أصل"
+  let baseRaw = "";
+  if (!isYearly && editingMode === "until" && editBaseDateInput) {
+    const b = (editBaseDateInput.value || "").trim();
+    if (b) {
+      const bd = new Date(b + "T00:00:00");
+      if (!isNaN(bd.getTime())) baseRaw = b;
+    }
+  }
+
+  // ── تحديث بيانات المدة ──
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  entry.note          = note;
+  entry.importance    = importance;
+  entry.targetDateRaw = rawDate;
+  // المدة المتكررة سنوياً تُعدّ دائماً تنازلياً نحو الموعد القادم
+  entry.modeAtSave    = isYearly ? "until" : editingMode;
+  entry.sinceBaseRaw  = baseRaw;
+  entry.yearly        = isYearly;
+  entry.targetDate    = formatGregorian(targetDate);
+
+  // إعادة حساب القيم الاحتياطية (تُستخدم عند تعذّر الحساب الديناميكي)
+  let days;
+  if (isYearly) {
+    const occ = nextYearlyOccurrence(rawDate, today);
+    days = occ ? diffInDays(today, occ) : 0;
+    entry.remainingDays     = Math.abs(days);
+    entry.remainingIsFuture = true;
+  } else {
+    days = editingMode === "since"
+      ? diffInDays(targetDate, today)
+      : diffInDays(today, targetDate);
+    entry.remainingDays     = Math.abs(days);
+    entry.remainingIsFuture = editingMode === "until" && targetDate > today;
+  }
+
+  // النصوص المخزّنة تُعاد كتابتها لتوافق البيانات الجديدة
+  // (العرض يُحسب ديناميكياً في renderSavedEntries، وهذه نسخة احتياطية فقط)
+  const verb = (!isYearly && editingMode === "since") ? t("verbSince") : t("verbUntil");
+  entry.mainText      = `<span class="result-verb-red">${verb}</span> ${Math.abs(days)} ${t("dayUnit")}`;
+  entry.remainingText = entry.mainText;
+  entry.equivalentText = "";
+  // وسوم مخفية (since_base / yearly) تُحفظ داخل details_text في السحابة
+  entry.detailsText = buildEntryMarkers(entry);
+  entry.sinceUntilSummary = "";
+
+  saveSavedEntries();
+  renderSavedEntries();
+  dbUpdateEntry(entry);
+
+  // رسالة نجاح قصيرة ثم إغلاق
+  if (editEntryError) {
+    editEntryError.style.color = "var(--color-success, #22c55e)";
+    editEntryError.textContent = t("editSaved");
+    editEntryError.hidden = false;
+  }
+  setTimeout(() => {
+    if (editEntryError) { editEntryError.style.color = ""; editEntryError.hidden = true; }
+    closeEditEntryModal();
+  }, 900);
+}
+
+if (editEntryForm)      editEntryForm.addEventListener("submit", handleEditEntrySubmit);
+if (editEntryCloseBtn)  editEntryCloseBtn.addEventListener("click", closeEditEntryModal);
+if (editEntryCancelBtn) editEntryCancelBtn.addEventListener("click", closeEditEntryModal);
+if (editModeSinceBtn)   editModeSinceBtn.addEventListener("click", () => setEditMode("since"));
+if (editModeUntilBtn)   editModeUntilBtn.addEventListener("click", () => setEditMode("until"));
+if (editYearlyCb)       editYearlyCb.addEventListener("change", refreshEditYearlyUI);
+if (editEntryModal) {
+  editEntryModal.addEventListener("click", (e) => {
+    if (e.target === editEntryModal) closeEditEntryModal();
+  });
+}
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && editEntryModal && !editEntryModal.hidden) closeEditEntryModal();
+});
+
 saveEntryBtn.addEventListener("click", async () => {
   // وضع الزائر: اطلب تسجيل الدخول قبل الحفظ
   if (!currentUsername) {
@@ -1931,6 +2247,12 @@ saveEntryBtn.addEventListener("click", async () => {
     }
   }
 
+  // 🎂 تكرار سنوي: التاريخ المختار هو التاريخ الأصلي (الميلاد/الذكرى)
+  // والعدّ يكون دائماً تنازلياً نحو الموعد القادم
+  const isYearlyNew = !!(yearlyCb && yearlyCb.checked);
+  const _todayNew = new Date(); _todayNew.setHours(0, 0, 0, 0);
+  const _yearlyDue = isYearlyNew ? nextYearlyOccurrence(rawDateValue, _todayNew) : null;
+
   const entry = {
     id: Date.now(),
     // السطر الأول: "مر / بقي X يوم" مع اللون الأحمر
@@ -1938,22 +2260,27 @@ saveEntryBtn.addEventListener("click", async () => {
     // السطر الثاني: "ما يعادل ..."
     equivalentText: resultEquivalent.innerHTML || "",
     // السطر الثالث: تفاصيل من/إلى
-    detailsText: (resultDetails.innerHTML || "") + (mode === "until" && lastSinceBaseRaw ? `<!--since_base:${lastSinceBaseRaw}-->` : ""),
-    sinceBaseRaw: (mode === "until" && lastSinceBaseRaw) ? lastSinceBaseRaw : "",
+    detailsText: isYearlyNew
+      ? "<!--yearly:1-->"
+      : (resultDetails.innerHTML || "") + (mode === "until" && lastSinceBaseRaw ? `<!--since_base:${lastSinceBaseRaw}-->` : ""),
+    sinceBaseRaw: (!isYearlyNew && mode === "until" && lastSinceBaseRaw) ? lastSinceBaseRaw : "",
+    yearly: isYearlyNew,
     // حقل قديم للإبقاء على التوافق مع المدد الأقدم
     remainingText: daysHtml || resultEquivalent.innerHTML,
-    remainingDays: lastDaysValue,
-    remainingIsFuture: lastIsRemaining,
+    remainingDays: _yearlyDue ? diffInDays(_todayNew, _yearlyDue) : lastDaysValue,
+    remainingIsFuture: isYearlyNew ? true : lastIsRemaining,
     targetDate: lastTargetGregorian,
-    sinceUntilSummary,
+    sinceUntilSummary: isYearlyNew ? "" : sinceUntilSummary,
     // قيم جديدة لدعم إعادة الحساب الديناميكي
     targetDateRaw: rawDateValue,
-    modeAtSave: mode,
+    modeAtSave: isYearlyNew ? "until" : mode,
     value: 1,
     importance,
     note,
     hidden: false,
   };
+
+  if (yearlyCb) yearlyCb.checked = false;
 
   savedEntries.push(entry);
   saveSavedEntries();
@@ -2008,23 +2335,17 @@ saveEntryBtn.addEventListener("click", async () => {
                      "يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
   const MONTHS_EN = ["Jan","Feb","Mar","Apr","May","Jun",
                      "Jul","Aug","Sep","Oct","Nov","Dec"];
-  const MONTHS_ID = ["Jan","Feb","Mar","Apr","Mei","Jun",
-                     "Jul","Agu","Sep","Okt","Nov","Des"];
   const WDAYS_AR  = ["أح","اث","ثل","أر","خم","جم","سب"];
   const WDAYS_EN  = ["Su","Mo","Tu","We","Th","Fr","Sa"];
-  const WDAYS_ID  = ["Mg","Sn","Sl","Rb","Km","Jm","Sb"];
 
-  function curLang() { return typeof getLanguage==="function" ? getLanguage() : "ar"; }
-  function isEn() { return curLang()==="en"; }
-  function isAr() { return curLang()==="ar"; }
+  function isEn() { return typeof getLanguage==="function" && getLanguage()==="en"; }
 
   function fmtDisplay(d) {
-    if (!d) return (typeof t === "function") ? t("selectDate") : "اختر تاريخاً";
+    if (!d) return isEn() ? "Select a date" : "اختر تاريخاً";
     const dd = String(d.getDate()).padStart(2,"0");
     const mm = String(d.getMonth()+1).padStart(2,"0");
     const yy = d.getFullYear();
-    // العربية: يوم/شهر/سنة — غيرها (إنجليزي/إندونيسي): سنة/شهر/يوم
-    return isAr() ? `${dd}/${mm}/${yy}` : `${yy}/${mm}/${dd}`;
+    return isEn() ? `${yy}/${mm}/${dd}` : `${dd}/${mm}/${yy}`;
   }
 
   function setSelected(date) {
@@ -2039,9 +2360,8 @@ saveEntryBtn.addEventListener("click", async () => {
   }
 
   function render() {
-    const _l = curLang();
-    const months = _l === "ar" ? MONTHS_AR : _l === "id" ? MONTHS_ID : MONTHS_EN;
-    const wdays  = _l === "ar" ? WDAYS_AR  : _l === "id" ? WDAYS_ID  : WDAYS_EN;
+    const months = isEn() ? MONTHS_EN : MONTHS_AR;
+    const wdays  = isEn() ? WDAYS_EN  : WDAYS_AR;
     monthLabel.textContent = months[viewMonth];
     yearInput.value = viewYear;
 
@@ -2221,20 +2541,17 @@ function checkAndNotify() {
   if (prefs.lastNotifDate === todayStr) return; // أُرسل اليوم بالفعل
 
   const near = (typeof savedEntries !== "undefined" ? savedEntries : []).filter(e => {
-    if (e.modeAtSave !== "until" || e.hidden || !e.targetDateRaw) return false;
-    const tgt = new Date(e.targetDateRaw + "T00:00:00");
-    if (isNaN(tgt)) return false;
-    const d = diffInDays(today, tgt);
-    return d >= 0 && d <= 3;
+    if (e.hidden) return false;
+    const due = getEntryDue(e, today);
+    return !!due && due.days >= 0 && due.days <= 3;
   });
 
   if (near.length === 0) return;
 
   near.forEach(e => {
-    const tgt  = new Date(e.targetDateRaw + "T00:00:00");
-    const days = diffInDays(today, tgt);
+    const days = getEntryDue(e, today).days;
     const body = days === 0
-      ? t("notifBodyToday").replace("{name}", e.note)
+      ? (e.yearly ? t("notifBodyYearly") : t("notifBodyToday")).replace("{name}", e.note)
       : t("notifBodyDays").replace("{n}", days).replace("{name}", e.note);
     sendOneNotif(t("notifReminderTitle"), body, `entry-notif-${e.id}`);
   });

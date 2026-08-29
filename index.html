@@ -5,7 +5,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title data-i18n="pageTitle">عداد الأيام</title>
   <link rel="icon" type="image/png" href="سنبله.png?v=1" />
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png" />
   <link rel="stylesheet" href="style.css" />
+
+  <!-- ===== تثبيت التطبيق (PWA) ===== -->
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#0f172a" />
+  <meta name="description" content="احسب عدد الأيام بين تاريخين أو منذ / حتى تاريخ معين، مع حفظ المدد والتذكيرات." />
+  <!-- دعم iPhone / iPad -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="عداد الأيام" />
+  <link rel="apple-touch-icon" href="apple-touch-icon.png" />
 </head>
 <body>
   <!-- شاشة تسجيل الدخول / الاشتراك -->
@@ -384,5 +396,6 @@
   <script src="hijri-date.js"></script>
   <script src="clock.js"></script>
   <script src="biometric.js"></script>
+  <script src="pwa.js"></script>
 </body>
 </html>

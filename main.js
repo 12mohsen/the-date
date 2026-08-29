@@ -32,6 +32,7 @@ const STORAGE_SAVED_KEY = "dayCounterSaved";
 const STORAGE_THEME_KEY = "dayCounterTheme";
 const STORAGE_USER_KEY = "dayCounterUser";
 const STORAGE_REMEMBER_KEY = "dayCounterRemember";
+const STORAGE_OFFLINE_KEY = "dayCounterOfflineCache";
 
 // عناصر المصادقة
 const authScreen     = document.getElementById("auth-screen");
@@ -450,6 +451,37 @@ function saveSavedEntries() {
   } catch (e) {
     // تجاهل أي خطأ في التخزين
   }
+  saveOfflineSnapshot();
+}
+
+// ─────────────────────────────────────────────────────
+//  نسخة احتياطية للعمل بدون إنترنت — مرتبطة باسم المستخدم
+//  تُستخدم فقط عند تعذّر الوصول للسحابة، ولا تُرفع إليها أبداً
+// ─────────────────────────────────────────────────────
+function saveOfflineSnapshot() {
+  try {
+    if (!currentUsername) return;
+    localStorage.setItem(
+      STORAGE_OFFLINE_KEY,
+      JSON.stringify({ user: currentUsername, entries: savedEntries })
+    );
+  } catch (e) {}
+}
+
+function loadOfflineSnapshot(username) {
+  try {
+    const raw = localStorage.getItem(STORAGE_OFFLINE_KEY);
+    if (!raw) return null;
+    const snap = JSON.parse(raw);
+    if (!snap || snap.user !== username || !Array.isArray(snap.entries)) return null;
+    return snap.entries;
+  } catch (e) {
+    return null;
+  }
+}
+
+function clearOfflineSnapshot() {
+  try { localStorage.removeItem(STORAGE_OFFLINE_KEY); } catch (e) {}
 }
 
 function loadSavedEntries() {
@@ -474,7 +506,21 @@ async function loadSavedEntriesFromCloud() {
   const cloudEntries = await dbFetchEntries();
 
   if (cloudEntries === null) {
-    // فشل الاتصال بالسحابة — نبقى على البيانات المحلية
+    // تعذّر الوصول للسحابة (بدون إنترنت) — نعرض آخر نسخة محلية لهذا المستخدم
+    if (savedEntries.length === 0) {
+      const snapshot = loadOfflineSnapshot(currentUsername);
+      if (snapshot && snapshot.length) {
+        savedEntries = snapshot;
+        try { localStorage.setItem(STORAGE_SAVED_KEY, JSON.stringify(savedEntries)); } catch (e) {}
+        renderSavedEntries();
+      }
+    }
+    return;
+  }
+
+  // السحابة فارغة فعلاً ولا توجد بيانات محلية → لا داعي لنسخة احتياطية قديمة
+  if (cloudEntries.length === 0 && savedEntries.length === 0) {
+    clearOfflineSnapshot();
     return;
   }
 
@@ -1794,8 +1840,9 @@ dbKeepAlivePing();
     const savedUsername = readSession();
     if (savedUsername) {
       // تحقّق من أن المستخدم ما زال موجوداً في القاعدة قبل استعادة الجلسة
+      // بدون إنترنت: نثق بالجلسة المحفوظة محلياً حتى لا يخرج المستخدم من حسابه
       const user = await dbGetUser(savedUsername);
-      if (user) {
+      if (user || !navigator.onLine) {
         restoreState();
         await startAppForUser(savedUsername);
         return;

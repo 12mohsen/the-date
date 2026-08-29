@@ -25,7 +25,28 @@ const APP_ORIGIN = "days_counter";
 const SUPABASE_URL      = "https://tvbuvwjkojhqcxhyehfs.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR2YnV2d2prb2pocWN4aHllaGZzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY3MDE4MTUsImV4cCI6MjA5MjI3NzgxNX0.egwryYwKu_Bicl_koaYXaKGBoxz42c6k4VkMD9aZSWQ";
 
-const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// ── عميل احتياطي عند تعذّر تحميل مكتبة supabase (بدون إنترنت) ──
+//    يُبقي التطبيق يعمل بالبيانات المحلية بدل أن يتوقف بخطأ.
+//    كل استدعاء يُرجع { data: null, error: offline } فتتعامل معه الدوال
+//    الحالية كفشل اتصال عادي.
+function createOfflineSupabaseStub() {
+  const offlineResult = { data: null, error: { message: "offline" } };
+  const chain = () =>
+    new Proxy(function () {}, {
+      get(_target, key) {
+        if (key === "then") return (resolve) => Promise.resolve(offlineResult).then(resolve);
+        return () => chain();
+      },
+      apply() { return chain(); },
+    });
+  console.warn("[Supabase] لم تُحمَّل المكتبة — التطبيق يعمل بالبيانات المحلية فقط.");
+  return { from: () => chain(), rpc: () => chain(), auth: {} };
+}
+
+const supabaseClient =
+  (typeof supabase !== "undefined" && supabase && typeof supabase.createClient === "function")
+    ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+    : createOfflineSupabaseStub();
 
 // ──────────────────────────────────────────────
 //  3) المستخدم الحالي

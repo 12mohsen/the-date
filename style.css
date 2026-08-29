@@ -1736,3 +1736,28 @@ body.light-theme .yearly-orig  { color: #4b5563; }
 .yearly-elapsed {
   font-size: 0.8rem;
 }
+
+/* ============ زر تثبيت التطبيق (PWA) ============ */
+.install-app-btn {
+  color: #4ade80;
+  border-color: rgba(74, 222, 128, 0.5);
+}
+
+.install-app-btn:hover {
+  background: rgba(74, 222, 128, 0.12);
+  color: #86efac;
+}
+
+.install-app-btn[hidden] {
+  display: none !important;
+}
+
+body.light-theme .install-app-btn {
+  color: #15803d;
+  border-color: #86efac;
+}
+
+body.light-theme .install-app-btn:hover {
+  background: #dcfce7;
+  color: #14532d;
+}

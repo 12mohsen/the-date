@@ -183,6 +183,12 @@ const TRANSLATIONS = {
 
     // المشاركة
     shareBtn:           "🔗 مشاركة",
+
+    // ── تثبيت التطبيق (PWA) ──
+    installBtn:         "⬇ تثبيت التطبيق",
+    installIOSTitle:    "تثبيت التطبيق على الشاشة الرئيسية",
+    installIOSMsg:      "١) اضغط زر المشاركة ⬆️ في أسفل المتصفح\n٢) اختر «إضافة إلى الشاشة الرئيسية»\n٣) اضغط «إضافة»",
+    installOkBtn:       "حسناً",
     shareModalTitle:    "🔗 مشاركة التطبيق",
     shareIntro:         "جرّب تطبيق",
     shareWebLabel:      "رابط الموقع:",
@@ -373,6 +379,12 @@ const TRANSLATIONS = {
 
     // Share
     shareBtn:           "🔗 Share",
+
+    // ── Install app (PWA) ──
+    installBtn:         "⬇ Install app",
+    installIOSTitle:    "Add the app to your Home Screen",
+    installIOSMsg:      "1) Tap the Share button ⬆️ at the bottom of the browser\n2) Choose “Add to Home Screen”\n3) Tap “Add”",
+    installOkBtn:       "OK",
     shareModalTitle:    "🔗 Share the app",
     shareIntro:         "Try the app",
     shareWebLabel:      "Website link:",

@@ -4,7 +4,7 @@
 //    كل شيء يمرّ عبر دوال security definer داخل القاعدة
 // ============================================================
 //
-//  ما تغيّر عن الإصدار السابق:
+//  ما تغيّر:
 //    • كلمة المرور تُرسل عبر HTTPS وتُجزّأ بـ bcrypt داخل الخادم
 //      (الهاشات القديمة SHA-256 تُرقّى تلقائياً عند أول دخول ناجح)
 //    • لا يُقرأ pass_hash ولا hint في المتصفح أبداً
@@ -28,7 +28,26 @@ const APP_ORIGIN = "days_counter";
 const SUPABASE_URL      = "https://tvbuvwjkojhqcxhyehfs.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR2YnV2d2prb2pocWN4aHllaGZzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY3MDE4MTUsImV4cCI6MjA5MjI3NzgxNX0.egwryYwKu_Bicl_koaYXaKGBoxz42c6k4VkMD9aZSWQ";
 
-const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// ── عميل احتياطي عند تعذّر تحميل مكتبة supabase (بدون إنترنت) ──
+//    يُبقي التطبيق يعمل بالبيانات المحلية بدل أن يتوقف بخطأ.
+function createOfflineSupabaseStub() {
+  const offlineResult = { data: null, error: { message: "offline" } };
+  const chain = () =>
+    new Proxy(function () {}, {
+      get(_target, key) {
+        if (key === "then") return (resolve) => Promise.resolve(offlineResult).then(resolve);
+        return () => chain();
+      },
+      apply() { return chain(); },
+    });
+  console.warn("[Supabase] لم تُحمَّل المكتبة — التطبيق يعمل بالبيانات المحلية فقط.");
+  return { from: () => chain(), rpc: () => chain(), auth: {} };
+}
+
+const supabaseClient =
+  (typeof supabase !== "undefined" && supabase && typeof supabase.createClient === "function")
+    ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+    : createOfflineSupabaseStub();
 
 // ──────────────────────────────────────────────
 //  3) المستخدم الحالي + توكن الجلسة
@@ -59,7 +78,6 @@ function setCurrentUsername(username) {
 }
 function getCurrentUsername() { return currentUsername; }
 
-// تُستدعى عند رفض القاعدة للتوكن (منتهٍ أو مُبطَل)
 function handleUnauthorized() {
   setSessionToken(null);
   currentUsername = null;
@@ -96,7 +114,6 @@ function generateUsernameSuggestions(base) {
 
 // ──────────────────────────────────────────────
 //  6) التحقق من الجلسة — يُستخدم لاستعادة الدخول عند فتح الصفحة
-//     يُبقي الاسم القديم dbGetUser حتى لا يتغيّر main.js
 // ──────────────────────────────────────────────
 async function dbGetUser(username) {
   const token = getSessionToken();
@@ -202,7 +219,6 @@ async function dbResetPasswordWithHint(username, hintInput, newPassword) {
 
 // ──────────────────────────────────────────────
 //  11) تغيير كلمة المرور (المستخدم مسجّل دخوله)
-//      p_token يُثبت الهوية — اسم المستخدم لم يعد يُرسل
 // ──────────────────────────────────────────────
 async function dbChangePassword(username, oldPassword, newPassword) {
   const { data, error } = await supabaseClient.rpc("app_change_password", {
@@ -232,8 +248,7 @@ async function dbLogout() {
 }
 
 // ──────────────────────────────────────────────
-//  13) Keep-Alive Ping — يُبقي مشروع Supabase نشطاً
-//      لم يعد يلمس جدول البيانات
+//  13) Keep-Alive Ping — لم يعد يلمس جدول البيانات
 // ──────────────────────────────────────────────
 async function dbKeepAlivePing() {
   try {

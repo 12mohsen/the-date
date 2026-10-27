@@ -2,175 +2,134 @@
 //  supabase.js — عمليات قاعدة البيانات الخاصة بتطبيق days_counter
 // ============================================================
 //
-//  ★ المصادقة (auth) موجودة في auth-shared.js فقط — لا تكرار هنا
-//  ★ هذا الملف يُحمَّل بعد auth-shared.js لذا يعتمد على:
-//       supabaseClient  → من auth-shared.js
-//       currentUsername → من auth-shared.js
+//  ★ الإصدار المحمي: لا وصول مباشر إلى جدول days_counter
+//    كل عملية تمرّ عبر دالة security definer تستخرج صاحب البيانات
+//    من توكن الجلسة ولا تثق بأي اسم مستخدم يرسله المتصفح.
 //
-// ──────────────────────────────────────────────────────────
-//  SQL لإنشاء جدول days_counter في Supabase (للمرجعية):
+//  ★ يعتمد على auth-shared.js:
+//       supabaseClient     → العميل
+//       getSessionToken()  → توكن الجلسة
+//       handleUnauthorized / isUnauthorized
 //
-//  CREATE TABLE days_counter (
-//    id               UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-//    entry_id         TEXT        NOT NULL,
-//    user_name        TEXT        NOT NULL,
-//    event_name       TEXT,
-//    target_date      DATE,
-//    note             TEXT,
-//    importance       TEXT        DEFAULT 'normal',
-//    target_date_raw  TEXT,
-//    mode_at_save     TEXT        DEFAULT 'since',
-//    hidden           BOOLEAN     DEFAULT false,
-//    main_text        TEXT,
-//    equivalent_text  TEXT,
-//    details_text     TEXT,
-//    sort_order       INTEGER,
-//    deleted_at       TIMESTAMPTZ,
-//    created_at       TIMESTAMPTZ DEFAULT NOW()
-//  );
-//
-//  ملاحظة: عمود id من نوع uuid مع gen_random_uuid() يضمن
-//  سهولة الحذف من لوحة تحكم Supabase (القاعدة رقم 6).
+//  ★ واجهة الدوال لم تتغيّر — main.js يعمل كما هو.
 // ============================================================
 
 // ──────────────────────────────────────────────
-//  حفظ مدة جديدة في الجدول
+//  أداة موحّدة لاستدعاء الدوال ومعالجة انتهاء الجلسة
 // ──────────────────────────────────────────────
-async function dbSaveEntry(entry) {
-  if (!currentUsername) return;
+async function dcCall(fnName, args, label) {
+  const token = getSessionToken();
+  if (!token) return { data: null, error: { message: "unauthorized" } };
 
-  // تحديد sort_order: نجلب أكبر قيمة حالية ثم نضيف 1
-  let nextOrder = 0;
-  if (typeof entry.sortOrder === "number") {
-    nextOrder = entry.sortOrder;
-  } else {
-    const { data: maxRow } = await supabaseClient
-      .from("days_counter")
-      .select("sort_order")
-      .eq("user_name", currentUsername)
-      .is("deleted_at", null)
-      .order("sort_order", { ascending: false, nullsFirst: false })
-      .limit(1);
-    const currentMax = (maxRow && maxRow[0] && typeof maxRow[0].sort_order === "number")
-      ? maxRow[0].sort_order : -1;
-    nextOrder = currentMax + 1;
-    entry.sortOrder = nextOrder;
-  }
-
-  const { error } = await supabaseClient
-    .from("days_counter")
-    .insert([{
-      entry_id:        String(entry.id),
-      user_name:       currentUsername,
-      event_name:      entry.note || "",
-      target_date:     entry.targetDateRaw || null,
-      note:            entry.note || "",
-      importance:      entry.importance || "normal",
-      target_date_raw: entry.targetDateRaw || "",
-      mode_at_save:    entry.modeAtSave || "since",
-      hidden:          entry.hidden || false,
-      main_text:       entry.mainText || "",
-      equivalent_text: entry.equivalentText || "",
-      details_text:    entry.detailsText || "",
-      sort_order:      nextOrder,
-    }]);
+  const { data, error } = await supabaseClient.rpc(fnName, Object.assign({ p_token: token }, args || {}));
 
   if (error) {
-    console.error("Supabase insert error:", error.message);
+    console.error(`Supabase ${label || fnName} error:`, error.message);
+    if (isUnauthorized(error)) handleUnauthorized();
   }
+  return { data, error };
 }
 
 // ──────────────────────────────────────────────
-//  حذف مؤجّل (Soft Delete) — تُحفظ في سلة المحذوفات
+//  تحويل صف من القاعدة إلى كائن التطبيق
+// ──────────────────────────────────────────────
+function dcMapRow(row, includeOrder) {
+  const _rawDet    = row.details_text || "";
+  const _sbMatch   = _rawDet.match(/<!--since_base:([0-9-]+)-->/);
+  const _sinceBase = _sbMatch ? _sbMatch[1] : "";
+  const _cleanDet  = _rawDet.replace(/<!--since_base:[0-9-]+-->/, "").trim();
+
+  const out = {
+    id:             Number(row.entry_id) || row.entry_id,
+    note:           row.event_name || row.note || "",
+    importance:     row.importance || "normal",
+    targetDateRaw:  row.target_date || row.target_date_raw || "",
+    modeAtSave:     row.mode_at_save || "since",
+    hidden:         row.hidden || false,
+    mainText:       row.main_text || "",
+    equivalentText: row.equivalent_text || "",
+    detailsText:    _cleanDet,
+    sinceBaseRaw:   _sinceBase,
+  };
+
+  if (includeOrder) {
+    out.sortOrder         = (typeof row.sort_order === "number") ? row.sort_order : null;
+    out.remainingDays     = null;
+    out.remainingIsFuture = false;
+    out.targetDate        = "";
+  } else {
+    out.deletedAt = row.deleted_at;
+  }
+  return out;
+}
+
+// ──────────────────────────────────────────────
+//  حفظ مدة جديدة
+// ──────────────────────────────────────────────
+async function dbSaveEntry(entry) {
+  const payload = {
+    entry_id:        String(entry.id),
+    event_name:      entry.note || "",
+    target_date:     entry.targetDateRaw || "",
+    note:            entry.note || "",
+    importance:      entry.importance || "normal",
+    target_date_raw: entry.targetDateRaw || "",
+    mode_at_save:    entry.modeAtSave || "since",
+    hidden:          entry.hidden || false,
+    main_text:       entry.mainText || "",
+    equivalent_text: entry.equivalentText || "",
+    details_text:    entry.detailsText || "",
+  };
+  if (typeof entry.sortOrder === "number") payload.sort_order = entry.sortOrder;
+
+  const { data } = await dcCall("dc_save", { p_entry: payload }, "insert");
+  if (data && typeof data.sort_order === "number") entry.sortOrder = data.sort_order;
+}
+
+// ──────────────────────────────────────────────
+//  حذف مؤجّل (Soft Delete)
 // ──────────────────────────────────────────────
 async function dbDeleteEntry(entryId) {
-  if (!currentUsername) return;
-  const { error } = await supabaseClient
-    .from("days_counter")
-    .update({ deleted_at: new Date().toISOString() })
-    .eq("entry_id", String(entryId))
-    .eq("user_name", currentUsername);
-
-  if (error) {
-    console.error("Supabase soft-delete error:", error.message);
-  }
+  await dcCall("dc_soft_delete", { p_entry_id: String(entryId) }, "soft-delete");
 }
 
 // ──────────────────────────────────────────────
 //  استعادة مدة من سلة المحذوفات
 // ──────────────────────────────────────────────
 async function dbRestoreEntry(entryId) {
-  if (!currentUsername) return;
-  const { error } = await supabaseClient
-    .from("days_counter")
-    .update({ deleted_at: null })
-    .eq("entry_id", String(entryId))
-    .eq("user_name", currentUsername);
-
-  if (error) {
-    console.error("Supabase restore error:", error.message);
-  }
+  await dcCall("dc_restore", { p_entry_id: String(entryId) }, "restore");
 }
 
 // ──────────────────────────────────────────────
 //  حذف نهائي للمدد التي مضى على حذفها أكثر من 30 يوماً
+//  (صار يتم داخل dc_fetch تلقائياً — مُبقاة للتوافق)
 // ──────────────────────────────────────────────
-async function dbPurgeOldDeleted() {
-  if (!currentUsername) return;
-  const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-  const { error } = await supabaseClient
-    .from("days_counter")
-    .delete()
-    .lt("deleted_at", cutoff)
-    .eq("user_name", currentUsername);
-
-  if (error) {
-    console.error("Supabase purge error:", error.message);
-  }
-}
+async function dbPurgeOldDeleted() { /* يُنفَّذ داخل dc_fetch */ }
 
 // ──────────────────────────────────────────────
 //  حذف نهائي فوري لجميع العناصر في سلة المحذوفات
 // ──────────────────────────────────────────────
 async function dbPermanentDeleteAll() {
-  if (!currentUsername) return;
-  const { error } = await supabaseClient
-    .from("days_counter")
-    .delete()
-    .not("deleted_at", "is", null)
-    .eq("user_name", currentUsername);
-
-  if (error) {
-    console.error("Supabase permanent delete all error:", error.message);
-  }
+  await dcCall("dc_permanent_delete_all", {}, "permanent delete all");
 }
 
 // ──────────────────────────────────────────────
-//  حذف نهائي لعناصر محددة (بالـ IDs)
+//  حذف نهائي لعناصر محددة
 // ──────────────────────────────────────────────
 async function dbPermanentDeleteSelected(entryIds) {
-  if (!currentUsername || !entryIds || entryIds.length === 0) return;
-  const { error } = await supabaseClient
-    .from("days_counter")
-    .delete()
-    .in("entry_id", entryIds.map(String))
-    .eq("user_name", currentUsername);
-
-  if (error) {
-    console.error("Supabase permanent delete selected error:", error.message);
-  }
+  if (!entryIds || entryIds.length === 0) return;
+  await dcCall("dc_permanent_delete_selected", { p_ids: entryIds.map(String) }, "permanent delete selected");
 }
 
 // ──────────────────────────────────────────────
 //  تحديث بيانات مدة محفوظة
 // ──────────────────────────────────────────────
 async function dbUpdateEntry(entry) {
-  if (!currentUsername) return;
-  const { error } = await supabaseClient
-    .from("days_counter")
-    .update({
+  await dcCall("dc_update", {
+    p_entry: {
+      entry_id:        String(entry.id),
       event_name:      entry.note || "",
-      target_date:     entry.targetDateRaw || null,
+      target_date:     entry.targetDateRaw || "",
       note:            entry.note || "",
       importance:      entry.importance || "normal",
       target_date_raw: entry.targetDateRaw || "",
@@ -179,126 +138,34 @@ async function dbUpdateEntry(entry) {
       main_text:       entry.mainText || "",
       equivalent_text: entry.equivalentText || "",
       details_text:    entry.detailsText || "",
-    })
-    .eq("entry_id", String(entry.id))
-    .eq("user_name", currentUsername);
-
-  if (error) {
-    console.error("Supabase update error:", error.message);
-  }
+    }
+  }, "update");
 }
 
 // ──────────────────────────────────────────────
 //  جلب المدد في سلة المحذوفات
 // ──────────────────────────────────────────────
 async function dbFetchDeletedEntries() {
-  if (!currentUsername) return [];
-  const { data, error } = await supabaseClient
-    .from("days_counter")
-    .select("*")
-    .eq("user_name", currentUsername)
-    .not("deleted_at", "is", null)
-    .order("deleted_at", { ascending: false });
-
-  if (error) {
-    console.error("Supabase fetch deleted error:", error.message);
-    return [];
-  }
-
-  return data.map((row) => {
-    const _rawDet   = row.details_text || "";
-    const _sbMatch  = _rawDet.match(/<!--since_base:([0-9-]+)-->/);
-    const _sinceBase = _sbMatch ? _sbMatch[1] : "";
-    const _yearly   = /<!--yearly:1-->/.test(_rawDet);
-    const _cleanDet = _rawDet
-      .replace(/<!--since_base:[0-9-]+-->/, "")
-      .replace(/<!--yearly:1-->/, "")
-      .trim();
-    return {
-      id:            Number(row.entry_id) || row.entry_id,
-      note:          row.event_name || row.note || "",
-      importance:    row.importance || "normal",
-      targetDateRaw: row.target_date || row.target_date_raw || "",
-      modeAtSave:    row.mode_at_save || "since",
-      hidden:        row.hidden || false,
-      mainText:      row.main_text || "",
-      equivalentText:row.equivalent_text || "",
-      detailsText:   _cleanDet,
-      sinceBaseRaw:  _sinceBase,
-      yearly:        _yearly,
-      deletedAt:     row.deleted_at,
-    };
-  });
+  const { data, error } = await dcCall("dc_fetch_deleted", {}, "fetch deleted");
+  if (error || !data) return [];
+  return data.map((row) => dcMapRow(row, false));
 }
 
 // ──────────────────────────────────────────────
 //  جلب المدد النشطة للمستخدم الحالي
 // ──────────────────────────────────────────────
 async function dbFetchEntries() {
-  if (!currentUsername) return null;
-
-  // تنظيف المحذوفات القديمة (أكثر من 30 يوماً) أولاً
-  await dbPurgeOldDeleted();
-
-  const { data, error } = await supabaseClient
-    .from("days_counter")
-    .select("*")
-    .eq("user_name", currentUsername)
-    .is("deleted_at", null)
-    .order("sort_order", { ascending: true, nullsFirst: false })
-    .order("created_at", { ascending: true });
-
-  if (error) {
-    console.error("Supabase fetch error:", error.message);
-    return null;
-  }
-
-  return data.map((row) => {
-    const _rawDet   = row.details_text || "";
-    const _sbMatch  = _rawDet.match(/<!--since_base:([0-9-]+)-->/);
-    const _sinceBase = _sbMatch ? _sbMatch[1] : "";
-    const _yearly   = /<!--yearly:1-->/.test(_rawDet);
-    const _cleanDet = _rawDet
-      .replace(/<!--since_base:[0-9-]+-->/, "")
-      .replace(/<!--yearly:1-->/, "")
-      .trim();
-    return {
-      id:              Number(row.entry_id) || row.entry_id,
-      note:            row.event_name || row.note || "",
-      importance:      row.importance || "normal",
-      targetDateRaw:   row.target_date || row.target_date_raw || "",
-      modeAtSave:      row.mode_at_save || "since",
-      hidden:          row.hidden || false,
-      mainText:        row.main_text || "",
-      equivalentText:  row.equivalent_text || "",
-      detailsText:     _cleanDet,
-      sinceBaseRaw:    _sinceBase,
-      yearly:          _yearly,
-      sortOrder:       (typeof row.sort_order === "number") ? row.sort_order : null,
-      remainingDays:   null,
-      remainingIsFuture: false,
-      targetDate:      "",
-    };
-  });
+  const { data, error } = await dcCall("dc_fetch", {}, "fetch");
+  if (error || !data) return null;
+  return data.map((row) => dcMapRow(row, true));
 }
 
 // ──────────────────────────────────────────────
 //  تحديث ترتيب المدد بعد السحب والإفلات
+//  ★ استدعاء واحد بدل استدعاء لكل عنصر
 // ──────────────────────────────────────────────
 async function dbUpdateOrder(entries) {
-  if (!currentUsername) return;
-  const updates = entries.map((entry, i) => {
-    entry.sortOrder = i;
-    return supabaseClient
-      .from("days_counter")
-      .update({ sort_order: i })
-      .eq("entry_id", String(entries[i].id))
-      .eq("user_name", currentUsername);
-  });
-  const results = await Promise.all(updates);
-  results.forEach((res, i) => {
-    if (res.error) {
-      console.error(`Supabase sort_order update error for entry ${entries[i].id}:`, res.error.message);
-    }
-  });
+  if (!entries || entries.length === 0) return;
+  entries.forEach((entry, i) => { entry.sortOrder = i; });
+  await dcCall("dc_update_order", { p_ids: entries.map(e => String(e.id)) }, "sort_order update");
 }

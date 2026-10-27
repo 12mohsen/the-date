@@ -369,6 +369,13 @@
       btn.disabled = false;
 
       if (res.ok) {
+        // الرمز السريع لا ينشئ جلسة خادم — تأكّد أن الجلسة الحالية ما زالت صالحة
+        const sess = (typeof dbGetUser === "function") ? await dbGetUser(res.username) : null;
+        if (!sess) {
+          alert("انتهت صلاحية الجلسة. سجّل الدخول بكلمة المرور مرة واحدة لتجديدها.");
+          refreshBioUI();
+          return;
+        }
         if (typeof startAppForUser === "function") await startAppForUser(res.username);
       } else if (res.error === "locked") {
         alert("تم تجاوز عدد المحاولات. أعد التفعيل بعد تسجيل الدخول بكلمة المرور.");

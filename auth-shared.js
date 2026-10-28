@@ -26,7 +26,7 @@ const APP_ORIGIN = "days_counter";
 //     الحقيقية في القاعدة (RLS + الدوال)، لا في إخفائه.
 // ──────────────────────────────────────────────
 const SUPABASE_URL      = "https://tvbuvwjkojhqcxhyehfs.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR2YnV2d2prb2pocWN4aHllaGZzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY3MDE4MTUsImV4cCI6MjA5MjI3NzgxNX0.egwryYwKu_Bicl_koaYXaKGBoxz42c6k4VkMD9aZSWQ";
+const SUPABASE_ANON_KEY = "sb_publishable_rySOIJ2uxPvZ8eUKFDzOhw_Ohrm0UcL";
 
 // ── عميل احتياطي عند تعذّر تحميل مكتبة supabase (بدون إنترنت) ──
 //    يُبقي التطبيق يعمل بالبيانات المحلية بدل أن يتوقف بخطأ.

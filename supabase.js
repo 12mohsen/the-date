@@ -37,7 +37,11 @@ function dcMapRow(row, includeOrder) {
   const _rawDet    = row.details_text || "";
   const _sbMatch   = _rawDet.match(/<!--since_base:([0-9-]+)-->/);
   const _sinceBase = _sbMatch ? _sbMatch[1] : "";
-  const _cleanDet  = _rawDet.replace(/<!--since_base:[0-9-]+-->/, "").trim();
+  const _yearly    = /<!--yearly:1-->/.test(_rawDet);
+  const _cleanDet  = _rawDet
+    .replace(/<!--since_base:[0-9-]+-->/, "")
+    .replace(/<!--yearly:1-->/, "")
+    .trim();
 
   const out = {
     id:             Number(row.entry_id) || row.entry_id,
@@ -50,6 +54,7 @@ function dcMapRow(row, includeOrder) {
     equivalentText: row.equivalent_text || "",
     detailsText:    _cleanDet,
     sinceBaseRaw:   _sinceBase,
+    yearly:         _yearly,
   };
 
   if (includeOrder) {

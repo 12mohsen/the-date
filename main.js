@@ -754,10 +754,12 @@ function renderSavedEntries() {
       // يُحسب دائمًا لوضع "حتى" (قبل وبعد الانتهاء) حتى يبقى "من أصل" ثابتًا
       let _origTotalDays = null;
       if (entry.modeAtSave === "until") {
+        // ★ البداية يجب أن تسبق الهدف فعلاً، وإلا فلا وجود لـ"أصل"
+        //   (مدة أُنشئت بعد مرور موعدها لا أصل لها — كان يُعرض رقم مقلوب ومجمّد)
         if (entry.sinceBaseRaw) {
           const _sb0 = new Date(entry.sinceBaseRaw + "T00:00:00");
           if (!isNaN(_sb0.getTime())) {
-            const _tot0 = Math.abs(diffInDays(_sb0, targetForCalc));
+            const _tot0 = diffInDays(_sb0, targetForCalc);   // موجب = البداية قبل الهدف
             if (_tot0 > 0) _origTotalDays = _tot0;
           }
         }
@@ -766,7 +768,7 @@ function renderSavedEntries() {
           if (!isNaN(_entryTs0) && _entryTs0 > 1577836800000 && _entryTs0 < 2524608000000) {
             const _saveDay0 = new Date(_entryTs0);
             _saveDay0.setHours(0, 0, 0, 0);
-            const _tot0 = Math.abs(diffInDays(_saveDay0, targetForCalc));
+            const _tot0 = diffInDays(_saveDay0, targetForCalc);
             if (_tot0 > 0) _origTotalDays = _tot0;
           }
         }
@@ -786,7 +788,9 @@ function renderSavedEntries() {
           dynamicMainLine = `<span class="result-verb-red" style="color: #22c55e;">${t("verbEnded")}</span>`;
           item.classList.add("ended-border");
           // يستمر عدّ المدة بعد الانتهاء + يبقى الأصل ظاهرًا للمراجعة
-          dynamicEquivLine = t("daysPassedSinceEnd", abs) + _origSuffix;
+          // ★ تُعرض المدة المنقضية بالشهور والأيام محسوبة من اليوم
+          const _passedEquiv = abs > 0 ? " — " + formatEquivDynamic(abs, abs, true) : "";
+          dynamicEquivLine = t("daysPassedSinceEnd", abs) + _passedEquiv + _origSuffix;
         } else if (targetForCalc.getTime() === today.getTime()) {
           dynamicMainLine = `<span class="result-verb-red" style="color: #f59e0b;">${t("verbToday")}</span>`;
           dynamicEquivLine = t("endsToday") + _origSuffix;
@@ -854,6 +858,10 @@ function renderSavedEntries() {
           } else if (_isFutureTarget) {
             _fromDate = today;
           }
+        }
+        // ★ تخطَّ السطر إذا كانت البداية بعد الهدف (نطاق مقلوب بلا معنى)
+        if (_fromDate && !_isFutureTarget && diffInDays(_fromDate, targetForCalc) <= 0) {
+          _fromDate = null;
         }
         if (_fromDate) {
           const _equivTotal = _origTotalDays != null

@@ -548,7 +548,7 @@
     fpBtn.type = "button";
     fpBtn.id = "bio-fp-enroll-btn";
     fpBtn.className = "bio-enroll-btn";
-    fpBtn.hidden = !fpAvailable;
+    fpBtn.style.display = fpAvailable ? "" : "none";
 
     const logoutRef = document.getElementById("logout-btn");
     if (logoutRef) userBar.insertBefore(fpBtn, logoutRef);
@@ -628,7 +628,14 @@
   // ════════════════════════════════════════════
   //  تحديث الواجهة
   // ════════════════════════════════════════════
+  let refreshing = false;
   function refreshBioUI() {
+    if (refreshing) return;
+    refreshing = true;
+    try { refreshBioUICore(); } finally { refreshing = false; }
+  }
+
+  function refreshBioUICore() {
     const enabled   = isPinEnabled();
     const fpEnabled = isFpEnabled();
 
@@ -636,14 +643,14 @@
     if (loginSection) loginSection.style.display = (enabled || fpEnabled) ? "block" : "none";
 
     const pinLoginBtn = document.getElementById("bio-login-btn");
-    if (pinLoginBtn) pinLoginBtn.hidden = !enabled;
+    if (pinLoginBtn) pinLoginBtn.style.display = enabled ? "" : "none";
 
     const fpLoginBtn = document.getElementById("bio-fp-login-btn");
-    if (fpLoginBtn) fpLoginBtn.hidden = !fpEnabled;
+    if (fpLoginBtn) fpLoginBtn.style.display = fpEnabled ? "" : "none";
 
     const fpEnrollBtn = document.getElementById("bio-fp-enroll-btn");
     if (fpEnrollBtn) {
-      fpEnrollBtn.hidden = !fpAvailable;
+      fpEnrollBtn.style.display = fpAvailable ? "" : "none";
       if (fpEnabled) {
         fpEnrollBtn.textContent = "🗑 إلغاء البصمة";
         fpEnrollBtn.className = "bio-enroll-btn bio-remove-btn";

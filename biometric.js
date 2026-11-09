@@ -1,5 +1,5 @@
 // ============================================================
-//  biometric.js — دخول سريع بـ PIN (6 أرقام)
+//  biometric.js — دخول سريع: بصمة الإصبع (WebAuthn) + رمز PIN
 //  يعمل داخل WebView (appcreator24) وعلى المتصفحات العادية
 //
 //  الآلية:
@@ -39,6 +39,135 @@
 
   function removePin() {
     [PIN_USER_KEY, PIN_HASH_KEY, PIN_SALT_KEY, PIN_ON_KEY].forEach(k => localStorage.removeItem(k));
+  }
+
+  // ════════════════════════════════════════════
+  //  بصمة الإصبع (WebAuthn / Passkey محلي)
+  //
+  //  ملاحظة أمنية: البصمة قفل محلي على هذا الجهاز فقط —
+  //  تفتح الجلسة المحفوظة ولا تُنشئ جلسة جديدة من الخادم،
+  //  تماماً كما يفعل رمز الـ PIN. إثبات الهوية للخادم يبقى
+  //  توكن الجلسة، ولهذا نتحقق من صلاحيته بعد كل فتح ناجح.
+  // ════════════════════════════════════════════
+  const FP_CRED_KEY = "dayCounterFpCredId";
+  const FP_USER_KEY = "dayCounterFpUser";
+  const FP_ON_KEY   = "dayCounterFpEnabled";
+
+  let fpAvailable = false;   // يُضبط عند التهيئة
+
+  function b64urlEncode(buf) {
+    const bytes = new Uint8Array(buf);
+    let str = "";
+    for (let i = 0; i < bytes.length; i++) str += String.fromCharCode(bytes[i]);
+    return btoa(str).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  }
+
+  function b64urlDecode(str) {
+    const pad = str.replace(/-/g, "+").replace(/_/g, "/");
+    const bin = atob(pad + "=".repeat((4 - (pad.length % 4)) % 4));
+    const out = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+
+  function isFpEnabled() {
+    return localStorage.getItem(FP_ON_KEY) === "1" &&
+           !!localStorage.getItem(FP_CRED_KEY) &&
+           !!localStorage.getItem(FP_USER_KEY);
+  }
+
+  function removeFp() {
+    [FP_CRED_KEY, FP_USER_KEY, FP_ON_KEY].forEach(k => localStorage.removeItem(k));
+  }
+
+  // هل يدعم هذا الجهاز بصمة مدمجة؟
+  async function checkFpSupport() {
+    try {
+      if (!window.isSecureContext) return false;           // يتطلب HTTPS
+      if (!window.PublicKeyCredential) return false;
+      if (!location.hostname) return false;                // لا يعمل من ملف محلي
+      if (!PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable) return false;
+      return await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // تسجيل البصمة لهذا المستخدم على هذا الجهاز
+  async function registerFingerprint(username) {
+    try {
+      const challenge = crypto.getRandomValues(new Uint8Array(32));
+      const userId    = crypto.getRandomValues(new Uint8Array(16));
+
+      const cred = await navigator.credentials.create({
+        publicKey: {
+          challenge,
+          rp: { name: "عداد الأيام", id: location.hostname },
+          user: { id: userId, name: username, displayName: username },
+          pubKeyCredParams: [{ type: "public-key", alg: -7 }, { type: "public-key", alg: -257 }],
+          authenticatorSelection: {
+            authenticatorAttachment: "platform",
+            userVerification: "required",
+            residentKey: "preferred",
+          },
+          timeout: 60000,
+          attestation: "none",
+        },
+      });
+
+      if (!cred) return { ok: false, cancelled: true };
+
+      localStorage.setItem(FP_CRED_KEY, b64urlEncode(cred.rawId));
+      localStorage.setItem(FP_USER_KEY, username);
+      localStorage.setItem(FP_ON_KEY, "1");
+      return { ok: true };
+    } catch (e) {
+      if (e && (e.name === "NotAllowedError" || e.name === "AbortError")) {
+        return { ok: false, cancelled: true };
+      }
+      console.warn("[FP] تعذّر التسجيل:", e && e.name, e && e.message);
+      return { ok: false, error: (e && e.name) || "error" };
+    }
+  }
+
+  // التحقق بالبصمة
+  async function verifyFingerprint() {
+    if (!isFpEnabled()) return { ok: false, error: "not_enabled" };
+    try {
+      const challenge = crypto.getRandomValues(new Uint8Array(32));
+      const credId    = b64urlDecode(localStorage.getItem(FP_CRED_KEY));
+
+      const assertion = await navigator.credentials.get({
+        publicKey: {
+          challenge,
+          allowCredentials: [{ type: "public-key", id: credId }],
+          userVerification: "required",
+          timeout: 60000,
+          rpId: location.hostname,
+        },
+      });
+
+      if (!assertion) return { ok: false, cancelled: true };
+      return { ok: true, username: localStorage.getItem(FP_USER_KEY) };
+    } catch (e) {
+      if (e && (e.name === "NotAllowedError" || e.name === "AbortError")) {
+        return { ok: false, cancelled: true };
+      }
+      console.warn("[FP] تعذّر التحقق:", e && e.name, e && e.message);
+      return { ok: false, error: (e && e.name) || "error" };
+    }
+  }
+
+  // ── دخول التطبيق بعد فتح محلي ناجح (بصمة أو PIN) ──
+  async function enterAppAfterUnlock(username) {
+    const sess = (typeof dbGetUser === "function") ? await dbGetUser(username) : null;
+    if (!sess) {
+      alert("انتهت صلاحية الجلسة. سجّل الدخول بكلمة المرور مرة واحدة لتجديدها.");
+      refreshBioUI();
+      return false;
+    }
+    if (typeof startAppForUser === "function") await startAppForUser(username);
+    return true;
   }
 
   // ════════════════════════════════════════════
@@ -138,6 +267,14 @@
       }
       .bio-login-btn:disabled { opacity: 0.5; }
       .bio-login-btn .bio-icon { font-size: 1.3rem; }
+      .bio-login-btn.bio-fp-btn {
+        background: rgba(34,197,94,0.14);
+        border-color: rgba(34,197,94,0.45);
+        color: #22c55e;
+        margin-bottom: 8px;
+      }
+      .bio-login-btn.bio-fp-btn:hover,
+      .bio-login-btn.bio-fp-btn:active { background: rgba(34,197,94,0.24); }
 
       /* ── زر تفعيل/إلغاء في شريط المستخدم ── */
       .bio-enroll-btn {
@@ -351,6 +488,13 @@
     divider.className = "bio-divider";
     divider.textContent = "أو";
 
+    // ── زر البصمة ──
+    const fpBtn = document.createElement("button");
+    fpBtn.type = "button";
+    fpBtn.id = "bio-fp-login-btn";
+    fpBtn.className = "bio-login-btn bio-fp-btn";
+    fpBtn.innerHTML = `<span class="bio-icon">🫆</span><span>الدخول ببصمة الإصبع</span>`;
+
     const btn = document.createElement("button");
     btn.type = "button";
     btn.id = "bio-login-btn";
@@ -358,7 +502,21 @@
     btn.innerHTML = `<span class="bio-icon">🔐</span><span>الدخول السريع (رمز الـ 6 أرقام)</span>`;
 
     section.appendChild(divider);
+    section.appendChild(fpBtn);
     section.appendChild(btn);
+
+    fpBtn.addEventListener("click", async () => {
+      fpBtn.disabled = true;
+      const res = await verifyFingerprint();
+      fpBtn.disabled = false;
+
+      if (res.ok) {
+        await enterAppAfterUnlock(res.username);
+      } else if (res.error && !res.cancelled) {
+        alert("تعذّر قراءة البصمة. استخدم كلمة المرور أو الرمز السريع.");
+      }
+      // cancelled → لا شيء
+    });
 
     const loginFields = document.getElementById("auth-login-fields");
     if (loginFields) loginFields.appendChild(section);
@@ -369,14 +527,7 @@
       btn.disabled = false;
 
       if (res.ok) {
-        // الرمز السريع لا ينشئ جلسة خادم — تأكّد أن الجلسة الحالية ما زالت صالحة
-        const sess = (typeof dbGetUser === "function") ? await dbGetUser(res.username) : null;
-        if (!sess) {
-          alert("انتهت صلاحية الجلسة. سجّل الدخول بكلمة المرور مرة واحدة لتجديدها.");
-          refreshBioUI();
-          return;
-        }
-        if (typeof startAppForUser === "function") await startAppForUser(res.username);
+        await enterAppAfterUnlock(res.username);
       } else if (res.error === "locked") {
         alert("تم تجاوز عدد المحاولات. أعد التفعيل بعد تسجيل الدخول بكلمة المرور.");
         refreshBioUI();
@@ -391,6 +542,46 @@
   function buildUserBarBioBtn() {
     const userBar = document.getElementById("user-bar");
     if (!userBar || document.getElementById("bio-enroll-btn")) return;
+
+    // ── زر تفعيل/إلغاء البصمة ──
+    const fpBtn = document.createElement("button");
+    fpBtn.type = "button";
+    fpBtn.id = "bio-fp-enroll-btn";
+    fpBtn.className = "bio-enroll-btn";
+    fpBtn.hidden = !fpAvailable;
+
+    const logoutRef = document.getElementById("logout-btn");
+    if (logoutRef) userBar.insertBefore(fpBtn, logoutRef);
+    else userBar.appendChild(fpBtn);
+
+    fpBtn.addEventListener("click", async () => {
+      if (isFpEnabled()) {
+        if (!confirm("هل تريد إلغاء الدخول بالبصمة على هذا الجهاز؟")) return;
+        removeFp();
+        refreshBioUI();
+        return;
+      }
+
+      const username = (typeof getCurrentUsername === "function")
+        ? getCurrentUsername()
+        : localStorage.getItem("dayCounterUser") || "";
+      if (!username) { alert("يجب تسجيل الدخول أولاً."); return; }
+
+      fpBtn.disabled = true;
+      fpBtn.textContent = "⏳ ضع إصبعك...";
+      const res = await registerFingerprint(username);
+      fpBtn.disabled = false;
+
+      if (res.ok) {
+        fpBtn.textContent = "✅ تم التفعيل!";
+        setTimeout(refreshBioUI, 1500);
+      } else if (res.cancelled) {
+        refreshBioUI();
+      } else {
+        refreshBioUI();
+        alert("تعذّر تفعيل البصمة على هذا الجهاز. تأكد أن قفل الشاشة بالبصمة مفعَّل في إعدادات جهازك.");
+      }
+    });
 
     const btn = document.createElement("button");
     btn.type = "button";
@@ -438,10 +629,29 @@
   //  تحديث الواجهة
   // ════════════════════════════════════════════
   function refreshBioUI() {
-    const enabled = isPinEnabled();
+    const enabled   = isPinEnabled();
+    const fpEnabled = isFpEnabled();
 
     const loginSection = document.getElementById("bio-login-section");
-    if (loginSection) loginSection.style.display = enabled ? "block" : "none";
+    if (loginSection) loginSection.style.display = (enabled || fpEnabled) ? "block" : "none";
+
+    const pinLoginBtn = document.getElementById("bio-login-btn");
+    if (pinLoginBtn) pinLoginBtn.hidden = !enabled;
+
+    const fpLoginBtn = document.getElementById("bio-fp-login-btn");
+    if (fpLoginBtn) fpLoginBtn.hidden = !fpEnabled;
+
+    const fpEnrollBtn = document.getElementById("bio-fp-enroll-btn");
+    if (fpEnrollBtn) {
+      fpEnrollBtn.hidden = !fpAvailable;
+      if (fpEnabled) {
+        fpEnrollBtn.textContent = "🗑 إلغاء البصمة";
+        fpEnrollBtn.className = "bio-enroll-btn bio-remove-btn";
+      } else {
+        fpEnrollBtn.textContent = "🫆 تفعيل بصمة الإصبع";
+        fpEnrollBtn.className = "bio-enroll-btn";
+      }
+    }
 
     const enrollBtn = document.getElementById("bio-enroll-btn");
     if (enrollBtn) {
@@ -463,6 +673,13 @@
     buildAuthBioElements();
     buildUserBarBioBtn();
     refreshBioUI();
+
+    // فحص دعم البصمة ثم إعادة رسم الواجهة
+    checkFpSupport().then((ok) => {
+      fpAvailable = ok;
+      if (!ok && isFpEnabled()) removeFp();   // جهاز لم يعد يدعمها
+      refreshBioUI();
+    });
 
     new MutationObserver(() => {
       const mainApp = document.getElementById("main-app");

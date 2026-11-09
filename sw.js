@@ -13,8 +13,8 @@
 //    ليُحذف المخزون القديم تلقائياً عند فتح التطبيق.
 // ============================================================
 
-const CACHE_VERSION = "days-counter-v3";
-const CDN_CACHE     = "days-counter-cdn-v3";
+const CACHE_VERSION = "days-counter-v4";
+const CDN_CACHE     = "days-counter-cdn-v4";
 
 // ملفات التطبيق الأساسية (App Shell)
 const APP_SHELL = [

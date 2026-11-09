@@ -49,6 +49,30 @@
   //  تماماً كما يفعل رمز الـ PIN. إثبات الهوية للخادم يبقى
   //  توكن الجلسة، ولهذا نتحقق من صلاحيته بعد كل فتح ناجح.
   // ════════════════════════════════════════════
+  const DEV_TOKEN_KEY = "dayCounterDeviceToken";   // مشترك بين البصمة والرمز السريع
+
+  function getDeviceToken() { return localStorage.getItem(DEV_TOKEN_KEY) || ""; }
+
+  // يُنشئ رمز جهاز إن لم يوجد (يتطلب جلسة صالحة الآن)
+  async function ensureDeviceToken() {
+    if (getDeviceToken()) return { ok: true };
+    if (typeof dbDeviceCreate !== "function") return { ok: false, error: "no_fn" };
+    const res = await dbDeviceCreate();
+    if (res.ok && res.device) {
+      localStorage.setItem(DEV_TOKEN_KEY, res.device);
+      return { ok: true };
+    }
+    return { ok: false, error: res.error };
+  }
+
+  // يُلغى رمز الجهاز فقط إذا لم يبقَ أي دخول سريع مفعَّل
+  async function maybeRevokeDevice() {
+    if (isPinEnabled() || isFpEnabled()) return;
+    const dev = getDeviceToken();
+    localStorage.removeItem(DEV_TOKEN_KEY);
+    if (typeof dbDeviceRevoke === "function") await dbDeviceRevoke(dev);
+  }
+
   const FP_CRED_KEY = "dayCounterFpCredId";
   const FP_USER_KEY = "dayCounterFpUser";
   const FP_ON_KEY   = "dayCounterFpEnabled";
@@ -160,14 +184,30 @@
 
   // ── دخول التطبيق بعد فتح محلي ناجح (بصمة أو PIN) ──
   async function enterAppAfterUnlock(username) {
-    const sess = (typeof dbGetUser === "function") ? await dbGetUser(username) : null;
-    if (!sess) {
-      alert("انتهت صلاحية الجلسة. سجّل الدخول بكلمة المرور مرة واحدة لتجديدها.");
-      refreshBioUI();
-      return false;
+    // 1) رمز الجهاز يُنشئ جلسة جديدة — يعمل حتى بعد تسجيل الخروج
+    const dev = getDeviceToken();
+    if (dev && typeof dbDeviceLogin === "function") {
+      const res = await dbDeviceLogin(dev);
+      if (res.ok) {
+        if (typeof startAppForUser === "function") await startAppForUser(res.username || username);
+        return true;
+      }
+      if (res.error === "invalid_device") {
+        // أُلغي الرمز من الخادم (تغيير كلمة مرور أو انتهاء صلاحية)
+        localStorage.removeItem(DEV_TOKEN_KEY);
+      }
     }
-    if (typeof startAppForUser === "function") await startAppForUser(username);
-    return true;
+
+    // 2) احتياطي: جلسة ما زالت صالحة على هذا الجهاز
+    const sess = (typeof dbGetUser === "function") ? await dbGetUser(username) : null;
+    if (sess) {
+      if (typeof startAppForUser === "function") await startAppForUser(username);
+      return true;
+    }
+
+    alert("انتهت صلاحية الدخول السريع. سجّل الدخول بكلمة المرور مرة واحدة لإعادة تفعيله.");
+    refreshBioUI();
+    return false;
   }
 
   // ════════════════════════════════════════════
@@ -558,6 +598,7 @@
       if (isFpEnabled()) {
         if (!confirm("هل تريد إلغاء الدخول بالبصمة على هذا الجهاز؟")) return;
         removeFp();
+        await maybeRevokeDevice();
         refreshBioUI();
         return;
       }
@@ -570,6 +611,17 @@
       fpBtn.disabled = true;
       fpBtn.textContent = "⏳ ضع إصبعك...";
       const res = await registerFingerprint(username);
+
+      if (res.ok) {
+        const dev = await ensureDeviceToken();
+        if (!dev.ok) {
+          removeFp();
+          fpBtn.disabled = false;
+          refreshBioUI();
+          alert("تعذّر ربط الجهاز بالخادم. تأكد من الاتصال بالإنترنت وأعد المحاولة.");
+          return;
+        }
+      }
       fpBtn.disabled = false;
 
       if (res.ok) {
@@ -597,6 +649,7 @@
         const ok = confirm("هل تريد إلغاء الدخول السريع؟");
         if (!ok) return;
         removePin();
+        await maybeRevokeDevice();
         refreshBioUI();
         return;
       }
@@ -611,6 +664,17 @@
       btn.textContent = "⏳ جارٍ التفعيل...";
 
       const res = await registerPin(username);
+
+      if (res.ok) {
+        const dev = await ensureDeviceToken();
+        if (!dev.ok) {
+          removePin();
+          btn.disabled = false;
+          refreshBioUI();
+          alert("تعذّر ربط الجهاز بالخادم. تأكد من الاتصال بالإنترنت وأعد المحاولة.");
+          return;
+        }
+      }
       btn.disabled = false;
 
       if (res.ok) {
@@ -673,6 +737,30 @@
   }
 
   // ════════════════════════════════════════════
+  //  طلب البصمة تلقائياً عند فتح شاشة الدخول
+  //  (مرة واحدة لكل فتح للصفحة)
+  // ════════════════════════════════════════════
+  let autoPrompted = false;
+
+  async function maybeAutoPrompt() {
+    if (autoPrompted || !isFpEnabled()) return;
+
+    const authScr = document.getElementById("auth-screen");
+    const mainApp = document.getElementById("main-app");
+    if (!authScr || authScr.hidden) return;        // لسنا في شاشة الدخول
+    if (mainApp && !mainApp.hidden) return;        // التطبيق مفتوح أصلاً
+
+    autoPrompted = true;
+    const fpBtn = document.getElementById("bio-fp-login-btn");
+    if (fpBtn) fpBtn.disabled = true;
+    const res = await verifyFingerprint();
+    if (fpBtn) fpBtn.disabled = false;
+
+    if (res.ok) await enterAppAfterUnlock(res.username);
+    // رفض أو إلغاء → يبقى الزر ظاهراً للمحاولة يدوياً
+  }
+
+  // ════════════════════════════════════════════
   //  التهيئة
   // ════════════════════════════════════════════
   function init() {
@@ -686,6 +774,7 @@
       fpAvailable = ok;
       if (!ok && isFpEnabled()) removeFp();   // جهاز لم يعد يدعمها
       refreshBioUI();
+      maybeAutoPrompt();
     });
 
     new MutationObserver(() => {

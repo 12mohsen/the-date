@@ -248,7 +248,43 @@ async function dbLogout() {
 }
 
 // ──────────────────────────────────────────────
-//  13) Keep-Alive Ping — لم يعد يلمس جدول البيانات
+//  13) رمز الجهاز — يسمح للبصمة/الرمز السريع بإنشاء
+//      جلسة جديدة بعد تسجيل الخروج، بلا تخزين كلمة المرور
+// ──────────────────────────────────────────────
+async function dbDeviceCreate() {
+  const token = getSessionToken();
+  if (!token) return { ok: false, error: "unauthorized" };
+
+  const { data, error } = await supabaseClient.rpc("app_device_create", { p_token: token });
+  if (error) {
+    console.error("Device create error:", error.message);
+    return { ok: false, error: error.message };
+  }
+  if (!data || !data.ok) return { ok: false, error: (data && data.error) || "failed" };
+  return { ok: true, device: data.device, user: data.user };
+}
+
+async function dbDeviceLogin(deviceToken) {
+  if (!deviceToken) return { ok: false, error: "no_device" };
+
+  const { data, error } = await supabaseClient.rpc("app_device_login", { p_device: deviceToken });
+  if (error) {
+    console.error("Device login error:", error.message);
+    return { ok: false, error: error.message };
+  }
+  if (!data || !data.ok) return { ok: false, error: (data && data.error) || "invalid_device" };
+
+  setSessionToken(data.token);          // جلسة جديدة صالحة
+  return { ok: true, username: data.user };
+}
+
+async function dbDeviceRevoke(deviceToken) {
+  if (!deviceToken) return;
+  try { await supabaseClient.rpc("app_device_revoke", { p_device: deviceToken }); } catch (e) {}
+}
+
+// ──────────────────────────────────────────────
+//  14) Keep-Alive Ping — لم يعد يلمس جدول البيانات
 // ──────────────────────────────────────────────
 async function dbKeepAlivePing() {
   try {

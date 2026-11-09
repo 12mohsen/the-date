@@ -1367,6 +1367,15 @@ function clearRememberedCredentials() {
   localStorage.removeItem(STORAGE_REMEMBER_KEY);
 }
 
+function readRememberedCredentials() {
+  try {
+    const raw = localStorage.getItem(STORAGE_REMEMBER_KEY);
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    return (data && data.username) ? data : null;
+  } catch (e) { return null; }
+}
+
 function loadRememberedCredentials() {
   try {
     const raw = localStorage.getItem(STORAGE_REMEMBER_KEY);
@@ -1849,6 +1858,22 @@ dbKeepAlivePing();
         return;
       }
       clearSession();
+    }
+
+    // لا جلسة صالحة → الدخول الدائم: دخول تلقائي بالبيانات المحفوظة
+    // (البصمة لها مسارها الخاص في biometric.js وتعمل قبل هذا)
+    if (navigator.onLine) {
+      const saved = readRememberedCredentials();
+      if (saved && saved.username && saved.password) {
+        const res = await dbLogin(saved.username, saved.password);
+        if (res && res.ok) {
+          restoreState();
+          await startAppForUser(saved.username);
+          return;
+        }
+        // بيانات لم تعد صالحة (تغيّرت كلمة المرور) → امسحها
+        if (res && res.exists === false) clearRememberedCredentials();
+      }
     }
   } catch (e) {
     console.error("initApp error:", e);

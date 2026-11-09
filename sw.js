@@ -13,8 +13,8 @@
 //    ليُحذف المخزون القديم تلقائياً عند فتح التطبيق.
 // ============================================================
 
-const CACHE_VERSION = "days-counter-v7";
-const CDN_CACHE     = "days-counter-cdn-v7";
+const CACHE_VERSION = "days-counter-v8";
+const CDN_CACHE     = "days-counter-cdn-v8";
 
 // ملفات التطبيق الأساسية (App Shell)
 const APP_SHELL = [
@@ -153,4 +153,20 @@ self.addEventListener("fetch", (event) => {
 // تحديث فوري عند طلب الصفحة
 self.addEventListener("message", (event) => {
   if (event.data === "SKIP_WAITING") self.skipWaiting();
+});
+
+// ──────────────────────────────────────────────
+//  النقر على الإشعار: افتح التطبيق أو ركّز نافذته
+// ──────────────────────────────────────────────
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const target = (event.notification.data && event.notification.data.url) || "./";
+  event.waitUntil(
+    clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
+      for (const c of list) {
+        if ("focus" in c) return c.focus();
+      }
+      if (clients.openWindow) return clients.openWindow(target);
+    })
+  );
 });

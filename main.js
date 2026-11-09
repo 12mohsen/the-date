@@ -2605,8 +2605,35 @@ function refreshNotifBtn() {
 /** إرسال إشعار واحد */
 function sendOneNotif(title, body, tag) {
   if (!("Notification" in window) || Notification.permission !== "granted") return;
+
+  const opts = {
+    body,
+    tag,
+    icon:  "icon-192.png",
+    badge: "favicon-32.png",
+    vibrate: [200, 100, 200],
+    silent: false,
+    renotify: true,
+    data: { url: location.href },
+  };
+
+  // ★ أندرويد لا يدعم new Notification() من الصفحة إطلاقاً —
+  //   لا بد من المرور عبر Service Worker، وإلا فشل الإشعار بصمت.
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.ready
+      .then((reg) => reg.showNotification(title, opts))
+      .catch((e) => {
+        console.warn("SW notification error:", e);
+        try {
+          const n = new Notification(title, opts);
+          n.onclick = () => { window.focus(); n.close(); };
+        } catch (e2) { console.warn("Notification error:", e2); }
+      });
+    return;
+  }
+
   try {
-    const n = new Notification(title, { body, tag, icon: "سنبله.png" });
+    const n = new Notification(title, opts);
     n.onclick = () => { window.focus(); n.close(); };
   } catch (e) { console.warn("Notification error:", e); }
 }
@@ -2673,6 +2700,8 @@ function initNotifButton() {
       prefs.lastNotifDate = null; // أعد الإرسال
       setNotifPrefs(prefs);
       refreshNotifBtn();
+      // إشعار تجريبي فوري ليرى المستخدم أنه يعمل فعلاً
+      sendOneNotif(t("notifReminderTitle"), t("notifTestBody"), "notif-test");
       checkAndNotify();
     } else {
       alert(t("notifPermDenied"));
